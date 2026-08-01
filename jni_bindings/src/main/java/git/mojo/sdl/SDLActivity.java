@@ -1,16 +1,23 @@
 package git.mojo.sdl;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
 import android.util.Log;
 import android.view.Surface;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class SDLActivity {
 
     private static List<GrabListener> grabListeners = new ArrayList<>();
+    private static Map<Integer, SDLCursor> customCursors = new HashMap<>();
+    private static SDLCursor.CursorChangeCallback cursorCallback;
+    private static int lastCursorId = 0;
     private static Runnable initCallback;
 
     protected static Surface mSurface;
@@ -24,6 +31,9 @@ public class SDLActivity {
 
     public static void setClipboard(SDLClipboard clipboard){
         mClipboard = clipboard;
+    }
+    public static void setCursorCallback(SDLCursor.CursorChangeCallback callback){
+        cursorCallback = callback;
     }
 
     public static void setNativeSurface(Surface surface){
@@ -100,15 +110,14 @@ public class SDLActivity {
     }
 
     public static void manualBackButton() {
-        // TODO
+        // Unsupported
     }
 
     public static void setOrientation(int w, int h, boolean resizable, String hint) {
-        // TODO
+        // Unsupported
     }
 
     public static boolean shouldMinimizeOnFocusLoss() {
-        // TODO
         return false;
     }
 
@@ -140,22 +149,27 @@ public class SDLActivity {
     }
 
     public static int createCustomCursor(int[] colors, int width, int height, int hotSpotX, int hotSpotY) {
-        // TODO
-        return 0;
+        Bitmap bitmap = Bitmap.createBitmap(colors, width, height, Bitmap.Config.ARGB_8888);
+        SDLCursor cursor = new SDLCursor(width, height, hotSpotX, hotSpotY, bitmap);
+        lastCursorId++;
+        customCursors.put(lastCursorId, cursor);
+        return lastCursorId;
     }
 
     public static void destroyCustomCursor(int cursorID) {
-        // TODO
+        customCursors.remove(cursorID);
     }
 
     public static boolean setCustomCursor(int cursorID) {
-        // TODO
-        return false;
+        if(!customCursors.containsKey(cursorID)) return false;
+        cursorCallback.onCursorChange(customCursors.get(cursorID));
+        return true;
     }
 
     public static boolean setSystemCursor(int cursorID) {
-        // TODO
-        return false;
+        // TODO: implement system cursors (point,loading, etc) on Mojo side
+        cursorCallback.onCursorChange(null);
+        return true;
     }
 
     public static void requestPermission(String permission, int requestCode) {
