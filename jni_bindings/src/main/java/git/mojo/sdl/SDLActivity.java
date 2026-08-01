@@ -29,7 +29,7 @@ import java.util.Map;
 public class SDLActivity {
 
     private static final int COMMAND_TEXTEDIT_HIDE = 3;
-    private static List<GrabListener> grabListeners = new ArrayList<>();
+    private static GrabListener grabListener;
     private static Map<Integer, SDLCursor> customCursors = new HashMap<>();
     private static SDLCursor.CursorChangeCallback cursorCallback;
     private static SDLKeyboardCaller keyboardCaller;
@@ -53,6 +53,9 @@ public class SDLActivity {
     }
     public static void setKeyboardCaller(SDLKeyboardCaller caller){
         keyboardCaller = caller;
+    }
+    public static void setGrabListener(GrabListener grabListener){
+        SDLActivity.grabListener = grabListener;
     }
 
     public static void setNativeSurface(Surface surface){
@@ -116,10 +119,6 @@ public class SDLActivity {
         if(initCallback != null) initCallback.run();
     }
 
-    public static void addGrabListener(GrabListener grabListener){
-        SDLActivity.grabListeners.add(grabListener);
-    }
-
     public static Surface getNativeSurface() {
         return mSurface;
     }
@@ -145,9 +144,7 @@ public class SDLActivity {
     }
 
     public static boolean setRelativeMouseEnabled(boolean enabled) {
-        for(GrabListener grabListener : grabListeners){
-            grabListener.onGrabState(enabled);
-        }
+        grabListener.onGrabState(enabled);
         return true;
     }
 
