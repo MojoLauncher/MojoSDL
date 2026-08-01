@@ -1,10 +1,26 @@
 package git.mojo.sdl;
 
+import static android.content.Context.UI_MODE_SERVICE;
+
 import android.app.Activity;
+import android.app.UiModeManager;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.LocaleList;
+import android.os.ParcelFileDescriptor;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
+import android.widget.Toast;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -17,6 +33,7 @@ public class SDLActivity {
     private static List<GrabListener> grabListeners = new ArrayList<>();
     private static Map<Integer, SDLCursor> customCursors = new HashMap<>();
     private static SDLCursor.CursorChangeCallback cursorCallback;
+    private static SDLKeyboardCaller keyboardCaller;
     private static int lastCursorId = 0;
     private static Runnable initCallback;
 
@@ -34,6 +51,9 @@ public class SDLActivity {
     }
     public static void setCursorCallback(SDLCursor.CursorChangeCallback callback){
         cursorCallback = callback;
+    }
+    public static void setKeyboardCaller(SDLKeyboardCaller caller){
+        keyboardCaller = caller;
     }
 
     public static void setNativeSurface(Surface surface){
@@ -173,89 +193,250 @@ public class SDLActivity {
     }
 
     public static void requestPermission(String permission, int requestCode) {
-        // TODO
+        // TODO: maybe implement?
     }
 
-    public static boolean openURL(String url) {
-        // TODO
-        return false;
+    public static boolean openURL(String url)
+    {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setData(Uri.parse(url));
+
+            int flags = Intent.FLAG_ACTIVITY_NO_HISTORY
+                | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+                | Intent.FLAG_ACTIVITY_NEW_DOCUMENT;
+            i.addFlags(flags);
+
+            mContext.startActivity(i);
+        } catch (Exception ex) {
+            return false;
+        }
+        return true;
     }
 
-    public static String getDeviceFormFactor() {
-        // TODO
-        return "";
+    static String getDeviceFormFactor()
+    {
+        // TODO: WearOS
+        if (isAndroidTV()) {
+            return "tv";
+        } else if (isVRHeadset()) {
+            return "headset";
+        } else if (isTablet()) {
+            return "tablet";
+            //} else if (isAndroidAutomotive()) {
+            //    return "car";
+        } else {
+            return "phone";
+        }
     }
 
     public static boolean getManifestEnvironmentVariables() {
-        // TODO
+        try {
+            if (getContext() == null) {
+                return false;
+            }
+
+            ApplicationInfo applicationInfo = getContext().getPackageManager().getApplicationInfo(getContext().getPackageName(), PackageManager.GET_META_DATA);
+            Bundle bundle = applicationInfo.metaData;
+            if (bundle == null) {
+                return false;
+            }
+            String prefix = "SDL_ENV.";
+            final int trimLength = prefix.length();
+            for (String key : bundle.keySet()) {
+                if (key.startsWith(prefix)) {
+                    String name = key.substring(trimLength);
+                    String value = bundle.get(key).toString();
+                    nativeSetenv(name, value);
+                }
+            }
+            /* environment variables set! */
+            return true;
+        } catch (Exception e) {
+            Log.v("SDL", "Manifest env exception " + e.toString());
+        }
+        return false;
+    }
+    public static boolean isAndroidTV() {
+        UiModeManager uiModeManager = (UiModeManager) getContext().getSystemService(UI_MODE_SERVICE);
+        if (uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) {
+            return true;
+        }
+        if (Build.MANUFACTURER.equals("MINIX") && Build.MODEL.equals("NEO-U1")) {
+            return true;
+        }
+        if (Build.MANUFACTURER.equals("Amlogic") &&
+            (Build.MODEL.startsWith("TV") ||
+                Build.MODEL.equals("X96-W") ||
+                Build.MODEL.equals("A95X-R1"))) {
+            return true;
+        }
         return false;
     }
 
-    public static boolean isAndroidTV() {
-        // TODO
+    public static boolean isVRHeadset() {
+        if (Build.MANUFACTURER.equals("Oculus") && Build.MODEL.startsWith("Quest")) {
+            return true;
+        }
+        if (Build.MANUFACTURER.equals("Pico")) {
+            return true;
+        }
         return false;
     }
 
     public static boolean isChromebook() {
-        // TODO
-        return false;
-    }
+        // https://stackoverflow.com/questions/39784415/how-to-detect-programmatically-if-android-app-is-running-in-chrome-book-or-in
+        if (getContext() != null) {
+            if (getContext().getPackageManager().hasSystemFeature("org.chromium.arc")
+                || getContext().getPackageManager().hasSystemFeature("org.chromium.arc.device_management")) {
+                return true;
+            }
+        }
 
+        // Running on AVD emulator
+        return (Build.MODEL != null && Build.MODEL.startsWith("sdk_gpc_"));
+    }
     public static boolean isDeXMode() {
-        // TODO
-        return false;
+        if (Build.VERSION.SDK_INT < 24 /* Android 7.0 (N) */) {
+            return false;
+        }
+        try {
+            final Configuration config = getContext().getResources().getConfiguration();
+            final Class<?> configClass = config.getClass();
+            return configClass.getField("SEM_DESKTOP_MODE_ENABLED").getInt(configClass)
+                == configClass.getField("semDesktopModeEnabled").getInt(config);
+        } catch(Exception ignored) {
+            return false;
+        }
+    }
+    public static double getDiagonal()
+    {
+        DisplayMetrics metrics = new DisplayMetrics();
+        Activity activity = getContext();
+        if (activity == null) {
+            return 0.0;
+        }
+        activity.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+        double dWidthInches = metrics.widthPixels / (double)metrics.xdpi;
+        double dHeightInches = metrics.heightPixels / (double)metrics.ydpi;
+
+        return Math.sqrt((dWidthInches * dWidthInches) + (dHeightInches * dHeightInches));
     }
 
+    /**
+     * This method is called by SDL using JNI.
+     */
     public static boolean isTablet() {
-        // TODO
-        return false;
+        // If our diagonal size is seven inches or greater, we consider ourselves a tablet.
+        return (getDiagonal() >= 7.0);
     }
-
     public static boolean sendMessage(int what, int arg) {
-        // TODO
         return false;
     }
-
     public static void minimizeWindow() {
-        // TODO
+        Intent startMain = new Intent(Intent.ACTION_MAIN);
+        startMain.addCategory(Intent.CATEGORY_HOME);
+        startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(startMain);
     }
 
     public static boolean setActivityTitle(String title) {
-        // TODO
         return true;
     }
 
     public static void setWindowStyle(boolean fullscreen) {
-        // TODO
     }
 
     public static boolean showTextInput(int x, int y, int w, int h, int flags) {
-        // TODO
-        return false;
+        keyboardCaller.acceptKeyboard(x, y);
+        return true;
     }
 
-    public static boolean showToast(String message, int duration, int gravity, int xOffset, int yOffset) {
-        // TODO
-        return false;
+    public static boolean showToast(String message, int duration, int gravity, int xOffset, int yOffset)
+    {
+        try
+        {
+            class OneShotTask implements Runnable {
+                private final String mMessage;
+                private final int mDuration;
+                private final int mGravity;
+                private final int mXOffset;
+                private final int mYOffset;
+
+                OneShotTask(String message, int duration, int gravity, int xOffset, int yOffset) {
+                    mMessage  = message;
+                    mDuration = duration;
+                    mGravity  = gravity;
+                    mXOffset  = xOffset;
+                    mYOffset  = yOffset;
+                }
+
+                public void run() {
+                    try
+                    {
+                        Toast toast = Toast.makeText(mContext, mMessage, mDuration);
+                        if (mGravity >= 0) {
+                            toast.setGravity(mGravity, mXOffset, mYOffset);
+                        }
+                        toast.show();
+                    } catch(Exception ex) {
+                        Log.e("SDL", "Failed to spawn toast: " + ex.getMessage());
+                    }
+                }
+            }
+            mContext.runOnUiThread(new OneShotTask(message, duration, gravity, xOffset, yOffset));
+        } catch(Exception ex) {
+            return false;
+        }
+        return true;
     }
 
     public static int openFileDescriptor(String uri, String mode) {
-        // TODO
-        return -1;
+        try(ParcelFileDescriptor fileDescriptor = mContext.getContentResolver().openFileDescriptor(Uri.parse(uri), mode);) {
+            if(fileDescriptor == null) return -1;
+            return fileDescriptor.detachFd();
+        } catch (IOException e) {
+            Log.e("SDL", "Unable to open FD at " + uri);
+            return -1;
+        }
     }
 
     public static boolean showFileDialog(String[] filters, boolean allowMultiple, int type, String initialPath, int requestCode) {
-        // TODO
+        // Unsupported
         return false;
     }
 
     public static String getPreferredLocales() {
-        // TODO
-        return "";
+        StringBuilder result = new StringBuilder();
+        if (Build.VERSION.SDK_INT >= 24 /* Android 7 (N) */) {
+            LocaleList locales = LocaleList.getAdjustedDefault();
+            for (int i = 0; i < locales.size(); i++) {
+                if (i != 0) result.append(",");
+                result.append(formatLocale(locales.get(i)));
+            }
+        }
+        return result.toString();
     }
 
     public static String formatLocale(Locale locale) {
-        // TODO
-        return locale.toString();
+        String result = "";
+        String lang = "";
+        if (locale.getLanguage().equals("in")) {
+            // Indonesian is "id" according to ISO 639.2, but on Android is "in" because of Java backwards compatibility
+            lang = "id";
+        } else if (locale.getLanguage().isEmpty()) {
+            // Make sure language is never empty
+            lang = "und";
+        } else {
+            lang = locale.getLanguage();
+        }
+
+        if (locale.getCountry() == "") {
+            result = lang;
+        } else {
+            result = lang + "_" + locale.getCountry();
+        }
+        return result;
     }
 }
