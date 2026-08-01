@@ -344,7 +344,7 @@ static bool SDL_EGL_LoadLibraryInternal(SDL_VideoDevice *_this, const char *egl_
 #ifdef SDL_VIDEO_DRIVER_ANDROID
     egl_dll_handle = mojoexec_acq_egl_handle();
     if (egl_dll_handle) {
-        fprintf(stderr, "SDL-MojoExec: loaded EGL through %p\n", egl_dll_handle);
+        SDL_Log("acquired EGL handle from mojoexec = %p\n", egl_dll_handle);
     }
 #endif
 #if !defined(SDL_VIDEO_STATIC_ANGLE) && !defined(SDL_VIDEO_DRIVER_VITA)

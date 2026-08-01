@@ -3253,7 +3253,6 @@ bool SDL_GetWindowSize(SDL_Window *window, int *w, int *h)
     if (h) {
         *h = window->h;
     }
-    fprintf(stderr, "SDL: SDL_GetWindowSize returns: %d x %d\n", *w, *h);
     return true;
 }
 
