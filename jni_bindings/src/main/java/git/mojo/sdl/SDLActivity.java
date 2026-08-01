@@ -19,17 +19,16 @@ import android.util.Log;
 import android.view.Surface;
 import android.widget.Toast;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class SDLActivity {
 
+    private static final int COMMAND_TEXTEDIT_HIDE = 3;
     private static List<GrabListener> grabListeners = new ArrayList<>();
     private static Map<Integer, SDLCursor> customCursors = new HashMap<>();
     private static SDLCursor.CursorChangeCallback cursorCallback;
@@ -332,7 +331,11 @@ public class SDLActivity {
         return (getDiagonal() >= 7.0);
     }
     public static boolean sendMessage(int what, int arg) {
-        return false;
+        switch(what){
+            case COMMAND_TEXTEDIT_HIDE: keyboardCaller.hideKeyboard(); break;
+            default: return false;
+        }
+        return true;
     }
     public static void minimizeWindow() {
         Intent startMain = new Intent(Intent.ACTION_MAIN);
@@ -348,7 +351,7 @@ public class SDLActivity {
     public static void setWindowStyle(boolean fullscreen) {
     }
 
-    public static boolean showTextInput(int x, int y, int w, int h, int flags) {
+    public static boolean showTextInput(int input_type, int x, int y, int w, int h) {
         keyboardCaller.acceptKeyboard(x, y);
         return true;
     }
