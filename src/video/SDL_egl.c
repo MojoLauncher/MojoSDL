@@ -299,7 +299,7 @@ SDL_FunctionPointer SDL_EGL_GetProcAddressInternal(SDL_VideoDevice *_this, const
             result = _this->egl_data->eglGetProcAddress(proc);
         }
 
-#if !defined(SDL_VIDEO_DRIVER_VITA)
+#if !defined(SDL_VIDEO_DRIVER_VITA) && !defined(SDL_VIDEO_DRIVER_ANDROID)
         // Try SDL_LoadFunction() first for EGL <= 1.4, or as a fallback for >= 1.5.
         if (!result) {
             result = SDL_LoadFunction(_this->egl_data->opengl_dll_handle, proc);
@@ -1021,7 +1021,7 @@ SDL_GLContext SDL_EGL_CreateContext(SDL_VideoDevice *_this, EGLSurface egl_surfa
         profile_es = true;
         if (mojoexec_renderspec.override_major_version > 0) {
             major_version = mojoexec_renderspec.override_major_version;
-            minor_version = 2; // TODO: really?
+            minor_version = 0; // TODO: really?
         }
         _this->gl_config.flags &= ~SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
     }
