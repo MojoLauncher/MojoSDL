@@ -28,11 +28,9 @@ import java.util.Map;
 
 public class SDLActivity {
 
-    private static final int COMMAND_TEXTEDIT_HIDE = 3;
     private static GrabListener grabListener;
     private static Map<Integer, SDLCursor> customCursors = new HashMap<>();
     private static SDLCursor.CursorChangeCallback cursorCallback;
-    private static SDLKeyboardCaller keyboardCaller;
     private static int lastCursorId = 0;
     private static Runnable initCallback;
 
@@ -50,9 +48,6 @@ public class SDLActivity {
     }
     public static void setCursorCallback(SDLCursor.CursorChangeCallback callback){
         cursorCallback = callback;
-    }
-    public static void setKeyboardCaller(SDLKeyboardCaller caller){
-        keyboardCaller = caller;
     }
     public static void setGrabListener(GrabListener grabListener){
         SDLActivity.grabListener = grabListener;
@@ -328,11 +323,7 @@ public class SDLActivity {
         return (getDiagonal() >= 7.0);
     }
     public static boolean sendMessage(int what, int arg) {
-        switch(what){
-            case COMMAND_TEXTEDIT_HIDE: keyboardCaller.hideKeyboard(); break;
-            default: return false;
-        }
-        return true;
+        return false;
     }
     public static void minimizeWindow() {
         Intent startMain = new Intent(Intent.ACTION_MAIN);
@@ -349,8 +340,7 @@ public class SDLActivity {
     }
 
     public static boolean showTextInput(int input_type, int x, int y, int w, int h) {
-        keyboardCaller.acceptKeyboard(x, y);
-        return true;
+        return false;
     }
 
     public static boolean showToast(String message, int duration, int gravity, int xOffset, int yOffset)
