@@ -239,11 +239,11 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeScreenKeyboardShown)(
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeScreenKeyboardHidden)(
     JNIEnv *env, jclass jcls);
 
-JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeKeyDown)(
+JNIEXPORT bool JNICALL SDL_JAVA_INTERFACE(onNativeKeyDown)(
     JNIEnv *env, jclass jcls,
     jint keycode);
 
-JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeKeyUp)(
+JNIEXPORT bool JNICALL SDL_JAVA_INTERFACE(onNativeKeyUp)(
     JNIEnv *env, jclass jcls,
     jint keycode);
 
@@ -393,8 +393,8 @@ static JNINativeMethod SDLActivity_tab[] = {
     { "onNativeSurfaceDestroyed", "()V", SDL_JAVA_INTERFACE(onNativeSurfaceDestroyed) },
     { "onNativeScreenKeyboardShown", "()V", SDL_JAVA_INTERFACE(onNativeScreenKeyboardShown) },
     { "onNativeScreenKeyboardHidden", "()V", SDL_JAVA_INTERFACE(onNativeScreenKeyboardHidden) },
-    { "onNativeKeyDown", "(I)V", SDL_JAVA_INTERFACE(onNativeKeyDown) },
-    { "onNativeKeyUp", "(I)V", SDL_JAVA_INTERFACE(onNativeKeyUp) },
+    { "onNativeKeyDown", "(I)Z", SDL_JAVA_INTERFACE(onNativeKeyDown) },
+    { "onNativeKeyUp", "(I)Z", SDL_JAVA_INTERFACE(onNativeKeyUp) },
     { "onNativeSoftReturnKey", "()Z", SDL_JAVA_INTERFACE(onNativeSoftReturnKey) },
     { "onNativeKeyboardFocusLost", "()V", SDL_JAVA_INTERFACE(onNativeKeyboardFocusLost) },
     { "onNativeTouch", "(IIIFFF)V", SDL_JAVA_INTERFACE(onNativeTouch) },
@@ -1345,31 +1345,35 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeScreenKeyboardHidden)(JNIEnv *
 }
 
 // Keydown
-JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeKeyDown)(
+JNIEXPORT bool JNICALL SDL_JAVA_INTERFACE(onNativeKeyDown)(
     JNIEnv *env, jclass jcls,
     jint keycode)
 {
+    bool ret = false;
     SDL_LockMutex(Android_ActivityMutex);
 
     if (Android_Window) {
-        Android_OnKeyDown(keycode);
+        ret = Android_OnKeyDown(keycode);
     }
 
     SDL_UnlockMutex(Android_ActivityMutex);
+    return ret;
 }
 
 // Keyup
-JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeKeyUp)(
+JNIEXPORT bool JNICALL SDL_JAVA_INTERFACE(onNativeKeyUp)(
     JNIEnv *env, jclass jcls,
     jint keycode)
 {
+    bool ret = false;
     SDL_LockMutex(Android_ActivityMutex);
 
     if (Android_Window) {
-        Android_OnKeyUp(keycode);
+        ret = Android_OnKeyUp(keycode);
     }
 
     SDL_UnlockMutex(Android_ActivityMutex);
+    return ret;
 }
 
 // Virtual keyboard return key might stop text input
