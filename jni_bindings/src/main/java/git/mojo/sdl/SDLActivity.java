@@ -74,6 +74,7 @@ public class SDLActivity {
     public static native void nativePause();
     public static native void nativeResume();
     public static native void nativeFocusChanged(boolean hasFocus);
+    public static native void nativeVisibilityChanged(boolean visibility);
     public static native void onNativeDropFile(String filename);
     public static native void nativeSetScreenResolution(int surfaceWidth, int surfaceHeight, int deviceWidth, int deviceHeight, float density, float rate);
     public static native void onNativeResize();

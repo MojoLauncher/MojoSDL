@@ -322,6 +322,9 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeResume)(
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeFocusChanged)(
     JNIEnv *env, jclass cls, jboolean hasFocus);
 
+JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeVisibilityChanged)(
+        JNIEnv *env, jclass jcls, jboolean visible);
+
 JNIEXPORT jstring JNICALL SDL_JAVA_INTERFACE(nativeGetHint)(
     JNIEnv *env, jclass cls,
     jstring name);
@@ -366,6 +369,7 @@ static JNINativeMethod SDLActivity_tab[] = {
     { "nativePause", "()V", SDL_JAVA_INTERFACE(nativePause) },
     { "nativeResume", "()V", SDL_JAVA_INTERFACE(nativeResume) },
     { "nativeFocusChanged", "(Z)V", SDL_JAVA_INTERFACE(nativeFocusChanged) },
+    {"nativeVisibilityChanged", "(Z)V", SDL_JAVA_INTERFACE(nativeVisibilityChanged)},
     { "nativeGetHint", "(Ljava/lang/String;)Ljava/lang/String;", SDL_JAVA_INTERFACE(nativeGetHint) },
     { "nativeGetHintBoolean", "(Ljava/lang/String;Z)Z", SDL_JAVA_INTERFACE(nativeGetHintBoolean) },
     { "nativeSetenv", "(Ljava/lang/String;Ljava/lang/String;)V", SDL_JAVA_INTERFACE(nativeSetenv) },
@@ -1580,6 +1584,19 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeFocusChanged)(
     (void)hasFocus;
 #endif
 
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeVisibilityChanged)(
+        JNIEnv *env, jclass jcls, jboolean visible)
+{
+    SDL_LockMutex(Android_ActivityMutex);
+#ifndef SDL_VIDEO_DISABLED
+    if (Android_Window) {
+        SDL_SendWindowEvent(Android_Window,
+                            visible ? SDL_EVENT_WINDOW_SHOWN : SDL_EVENT_WINDOW_HIDDEN, 0, 0);
+    }
+#endif
     SDL_UnlockMutex(Android_ActivityMutex);
 }
 
