@@ -23,7 +23,7 @@ import java.util.List;
 
 public class HIDDeviceManager {
     private static final String TAG = "hidapi";
-    private static final String ACTION_USB_PERMISSION = "org.libsdl.app.USB_PERMISSION";
+    private static final String ACTION_USB_PERMISSION = "git.artdeell.mojo.USB_PERMISSION";
 
     private static HIDDeviceManager sManager;
     private static int sManagerRefCount = 0;
@@ -352,6 +352,7 @@ public class HIDDeviceManager {
                     if ((interface_mask & (1 << interface_id)) != 0) {
                         continue;
                     }
+
                     interface_mask |= (1 << interface_id);
 
                     HIDDeviceUSB device = new HIDDeviceUSB(this, usbDevice, interface_index);
