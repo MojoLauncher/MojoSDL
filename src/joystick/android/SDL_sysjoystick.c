@@ -409,9 +409,9 @@ void Android_AddJoystick(int device_id, const char *name, const char *desc, int 
         goto done;
     }
 
-    //if (SDL_JoystickHandledByAnotherDriver(&SDL_ANDROID_JoystickDriver, vendor_id, product_id, 0, name)) {
-     //   goto done;
-    //}
+    if (SDL_JoystickHandledByAnotherDriver(&SDL_ANDROID_JoystickDriver, vendor_id, product_id, 0, name)) {
+        goto done;
+    }
 
     if (SDL_ShouldIgnoreJoystick(vendor_id, product_id, 0, name)) {
         goto done;
