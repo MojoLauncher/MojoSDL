@@ -141,6 +141,8 @@ bool Android_Vulkan_CreateSurface(SDL_VideoDevice *_this,
                             " extension is not enabled in the Vulkan instance.");
     }
 
+    mojoexec_override_pretransform(windowData->native_window);
+
     SDL_zero(createInfo);
     createInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
     createInfo.pNext = NULL;
