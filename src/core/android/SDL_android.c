@@ -570,41 +570,6 @@ static void register_methods(JNIEnv *env, const char *classname, JNINativeMethod
     }
 }
 
-// Library init
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
-{
-    // This is a workaround against other apps calling JNI_OnLoad:
-    // JNI bindings are initialized on the launcher (ART) side, however, some mods can override this and thus try to load the library outside of ART classpath
-    // Guard from this and just return JNI version as we *might* have already initialized the JNI bindings at this point
-    if(mJavaVM && mJavaVM != vm){
-        __android_log_print(ANDROID_LOG_ERROR, "SDL", "Tried to reinitialize JNI Env");
-        return JNI_VERSION_1_4;
-    }
-
-    JNIEnv *env = NULL;
-
-    mJavaVM = vm;
-
-    if ((*mJavaVM)->GetEnv(mJavaVM, (void **)&env, JNI_VERSION_1_4) != JNI_OK) {
-        __android_log_print(ANDROID_LOG_ERROR, "SDL", "Failed to get JNI Env");
-        return JNI_VERSION_1_4;
-    }
-
-    register_methods(env, "git/mojo/sdl/SDLActivity", SDLActivity_tab, SDL_arraysize(SDLActivity_tab));
-#ifndef SDL_VIDEO_DISABLED
-    register_methods(env, "git/mojo/sdl/SDLInputConnection", SDLInputConnection_tab, SDL_arraysize(SDLInputConnection_tab));
-#endif
-#ifndef SDL_AUDIO_DISABLED
-    register_methods(env, "git/mojo/sdl/SDLAudioManager", SDLAudioManager_tab, SDL_arraysize(SDLAudioManager_tab));
-#endif
-#ifdef SDL_ANDROID_NEED_CONTROLLER_MANAGER
-    register_methods(env, "git/mojo/sdl/SDLControllerManager", SDLControllerManager_tab, SDL_arraysize(SDLControllerManager_tab));
-#endif
-    register_methods(env, "git/mojo/sdl/HIDDeviceManager", HIDDeviceManager_tab, SDL_arraysize(HIDDeviceManager_tab));
-
-    return JNI_VERSION_1_4;
-}
-
 void checkJNIReady(void)
 {
     if (!mActivityClass) {
@@ -654,9 +619,23 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
     // Save JNIEnv of SDLActivity
     Android_JNI_SetEnv(env);
 
-    if (!mJavaVM) {
-        __android_log_print(ANDROID_LOG_ERROR, "SDL", "failed to found a JavaVM");
+    if ((*env)->GetJavaVM(env, &mJavaVM) != JNI_OK) {
+        __android_log_print(ANDROID_LOG_ERROR, "SDL", "failed to find a JavaVM");
+        abort();
     }
+
+    // Register ART side methods
+    register_methods(env, "git/mojo/sdl/SDLActivity", SDLActivity_tab, SDL_arraysize(SDLActivity_tab));
+#ifndef SDL_VIDEO_DISABLED
+    register_methods(env, "git/mojo/sdl/SDLInputConnection", SDLInputConnection_tab, SDL_arraysize(SDLInputConnection_tab));
+#endif
+#ifndef SDL_AUDIO_DISABLED
+    register_methods(env, "git/mojo/sdl/SDLAudioManager", SDLAudioManager_tab, SDL_arraysize(SDLAudioManager_tab));
+#endif
+#ifdef SDL_ANDROID_NEED_CONTROLLER_MANAGER
+    register_methods(env, "git/mojo/sdl/SDLControllerManager", SDLControllerManager_tab, SDL_arraysize(SDLControllerManager_tab));
+#endif
+    register_methods(env, "git/mojo/sdl/HIDDeviceManager", HIDDeviceManager_tab, SDL_arraysize(HIDDeviceManager_tab));
 
     /* Use a mutex to prevent concurrency issues between Java Activity and Native thread code, when using 'Android_Window'.
      * (Eg. Java sending Touch events, while native code is destroying the main SDL_Window. )

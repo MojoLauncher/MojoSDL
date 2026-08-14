@@ -1,6 +1,6 @@
 SDL3_0.0.0 {
   global:
-    JNI_OnLoad;
+    Java_git_mojo_sdl_SDLActivity_nativeSetupJNI;
     SDL_DYNAPI_entry;
     SDL_AcquireCameraFrame;
     SDL_AcquireGPUCommandBuffer;
