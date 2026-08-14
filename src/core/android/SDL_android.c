@@ -573,6 +573,14 @@ static void register_methods(JNIEnv *env, const char *classname, JNINativeMethod
 // Library init
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 {
+    // This is a workaround against other apps calling JNI_OnLoad:
+    // JNI bindings are initialized on the launcher (ART) side, however, some mods can override this and thus try to load the library outside of ART classpath
+    // Guard from this and just return JNI version as we *might* have already initialized the JNI bindings at this point
+    if(mJavaVM && mJavaVM != vm){
+        __android_log_print(ANDROID_LOG_ERROR, "SDL", "Tried to reinitialize JNI Env");
+        return JNI_VERSION_1_4;
+    }
+
     JNIEnv *env = NULL;
 
     mJavaVM = vm;
