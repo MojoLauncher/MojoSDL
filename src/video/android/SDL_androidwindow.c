@@ -217,29 +217,40 @@ void Android_SetWindowResizable(SDL_VideoDevice *_this, SDL_Window *window, bool
 
 void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window)
 {
-    if(!window) return; // Yes, this happens. Sometimes
+    if(!window) {
+        return; // Yes, this happens. Sometimes
+    }
     SDL_WindowData *data = window->internal;
     if(!data) {
         return;
     }
     ANativeWindow* anw = Android_JNI_GetNativeWindow();
     if(!anw){
-        SDL_Log("Failed to fetch ANativeWindow");
+        SDL_Log("Failed to fetch ANativeWindow!");
         return;
     }
     data->native_window = anw;
     Android_Window->internal->native_window = NULL;
 #ifdef SDL_VIDEO_OPENGL_EGL
-    if(Android_Window->internal->egl_surface != EGL_NO_SURFACE) {
+    if (Android_Window->internal->egl_surface != EGL_NO_SURFACE) {
         SDL_EGL_DestroySurface(_this, Android_Window->internal->egl_surface);
-        Android_Window->internal->egl_surface = SDL_EGL_CreateOffscreenSurface(_this, Android_SurfaceWidth, Android_SurfaceHeight);
-        Android_Window->internal->surface_changed = true;
     }
     if (data->egl_surface != EGL_NO_SURFACE) {
         SDL_EGL_DestroySurface(_this, data->egl_surface);
     }
-    data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
-    data->surface_changed = true;
+    if(Android_Window->flags & SDL_WINDOW_OPENGL) {
+        Android_Window->internal->egl_surface = SDL_EGL_CreateOffscreenSurface(_this,
+                                                                               Android_SurfaceWidth,
+                                                                               Android_SurfaceHeight);
+        Android_Window->internal->surface_changed = true;
+    }
+    if(window->flags & SDL_WINDOW_OPENGL) {
+        data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
+        if(data->egl_surface == EGL_NO_SURFACE) {
+            SDL_Log("Failed to create EGLSurface on swapped window!");
+        }
+        data->surface_changed = true;
+    }
 #endif
     Android_Window = window;
 }
