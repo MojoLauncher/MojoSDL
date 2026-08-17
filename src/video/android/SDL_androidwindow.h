@@ -31,6 +31,7 @@ extern void Android_SetWindowTitle(SDL_VideoDevice *_this, SDL_Window *window);
 extern SDL_FullscreenResult Android_SetWindowFullscreen(SDL_VideoDevice *_this, SDL_Window *window, SDL_VideoDisplay *display, SDL_FullscreenOp fullscreen);
 extern void Android_MinimizeWindow(SDL_VideoDevice *_this, SDL_Window *window);
 extern void Android_SetWindowResizable(SDL_VideoDevice *_this, SDL_Window *window, bool resizable);
+extern void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window);
 
 extern void Android_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window);
 extern SDL_Window *Android_Window;

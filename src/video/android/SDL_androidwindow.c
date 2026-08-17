@@ -36,19 +36,50 @@
 // Currently only one window
 SDL_Window *Android_Window = NULL;
 
+static bool Android_CreateOffscreenWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_PropertiesID create_props)
+{
+    window->x = 0;
+    window->y = 0;
+    window->w = Android_SurfaceWidth;
+    window->h = Android_SurfaceHeight;
+
+    SDL_WindowData *data = (SDL_WindowData *)SDL_calloc(1, sizeof(*data));
+    if (!data) {
+        return false;
+    }
+    // Only primary window has ANativeWindow
+    data->native_window = NULL;
+
+#ifdef SDL_VIDEO_OPENGL_EGL
+    if (window->flags & SDL_WINDOW_OPENGL) {
+        data->egl_surface = SDL_EGL_CreateOffscreenSurface(_this, window->w, window->h);
+        if (data->egl_surface == EGL_NO_SURFACE) {
+            SDL_free(data);
+            return false;
+        }
+    }
+    SDL_SetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_ANDROID_SURFACE_POINTER, data->egl_surface);
+#endif
+    window->internal = data;
+    return true;
+}
+
 bool Android_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_PropertiesID create_props)
 {
-    SDL_WindowData *data;
     bool result = true;
 
     if (!Android_WaitActiveAndLockActivity()) {
         return false;
     }
 
-    if (Android_Window) {
-        result = SDL_SetError("Android only supports one window");
+    if(Android_Window) {
+        SDL_Log("Creating offscreen window as Android does not support multiple windows");
+        // We only store a single owner window, other ones are offscreen
+        result = Android_CreateOffscreenWindow(_this, window, create_props);
         goto endfunction;
     }
+
+    SDL_WindowData *data;
 
     // Set orientation
     Android_JNI_SetOrientation(window->w, window->h, window->flags & SDL_WINDOW_RESIZABLE, SDL_GetHint(SDL_HINT_ORIENTATIONS));
@@ -108,6 +139,9 @@ endfunction:
 
 void Android_SetWindowTitle(SDL_VideoDevice *_this, SDL_Window *window)
 {
+    if(window != Android_Window) {
+        return;
+    }
     Android_JNI_SetActivityTitle(window->title);
 }
 
@@ -166,13 +200,63 @@ endfunction:
 
 void Android_MinimizeWindow(SDL_VideoDevice *_this, SDL_Window *window)
 {
+    if(window != Android_Window) {
+        return;
+    }
     Android_JNI_MinimizeWindow();
 }
 
 void Android_SetWindowResizable(SDL_VideoDevice *_this, SDL_Window *window, bool resizable)
 {
+    if(window != Android_Window) {
+        return;
+    }
     // Set orientation
     Android_JNI_SetOrientation(window->w, window->h, window->flags & SDL_WINDOW_RESIZABLE, SDL_GetHint(SDL_HINT_ORIENTATIONS));
+}
+
+void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window)
+{
+    if(!window) return; // Yes, this happens. Sometimes
+    SDL_WindowData *data = window->internal;
+    if(!data) {
+        return;
+    }
+    ANativeWindow* anw = Android_JNI_GetNativeWindow();
+    if(!anw){
+        SDL_Log("Failed to fetch ANativeWindow");
+        return;
+    }
+    data->native_window = anw;
+    Android_Window->internal->native_window = NULL;
+#ifdef SDL_VIDEO_OPENGL_EGL
+    if(Android_Window->internal->egl_surface != EGL_NO_SURFACE) {
+        SDL_EGL_DestroySurface(_this, Android_Window->internal->egl_surface);
+        Android_Window->internal->egl_surface = SDL_EGL_CreateOffscreenSurface(_this, Android_SurfaceWidth, Android_SurfaceHeight);
+        Android_Window->internal->surface_changed = true;
+    }
+    if (data->egl_surface != EGL_NO_SURFACE) {
+        SDL_EGL_DestroySurface(_this, data->egl_surface);
+    }
+    data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
+    data->surface_changed = true;
+#endif
+    Android_Window = window;
+}
+
+static void Android_DestroyOffscreenWindow(SDL_VideoDevice *_this, SDL_Window *window)
+{
+    if (window->internal) {
+        SDL_WindowData *data = window->internal;
+
+#ifdef SDL_VIDEO_OPENGL_EGL
+        if (data->egl_surface != EGL_NO_SURFACE) {
+            SDL_EGL_DestroySurface(_this, data->egl_surface);
+        }
+#endif
+        SDL_free(window->internal);
+        window->internal = NULL;
+    }
 }
 
 void Android_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
@@ -197,6 +281,9 @@ void Android_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
             SDL_free(window->internal);
             window->internal = NULL;
         }
+    }
+    else {
+        Android_DestroyOffscreenWindow(_this, window);
     }
 
     Android_UnlockActivityMutex();
