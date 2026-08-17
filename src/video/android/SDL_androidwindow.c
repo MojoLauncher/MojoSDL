@@ -232,6 +232,7 @@ void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window)
     data->native_window = anw;
     Android_Window->internal->native_window = NULL;
 #ifdef SDL_VIDEO_OPENGL_EGL
+    _this->egl_data->eglMakeCurrent(_this->egl_data->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     if (Android_Window->internal->egl_surface != EGL_NO_SURFACE) {
         SDL_EGL_DestroySurface(_this, Android_Window->internal->egl_surface);
     }
@@ -247,6 +248,8 @@ void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window)
     if(window->flags & SDL_WINDOW_OPENGL) {
         data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
         if(data->egl_surface == EGL_NO_SURFACE) {
+            // This is purposely left unhandled so the app can "safely" crash with EGL_BAD_SURFACE
+            // or not crash and fill logcat with spam from the system EGL :trolley:
             SDL_Log("Failed to create EGLSurface on swapped window!");
         }
         data->surface_changed = true;
