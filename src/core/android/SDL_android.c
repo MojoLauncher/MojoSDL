@@ -98,6 +98,7 @@ static jmethodID midSendMessage;
 static jmethodID midNotifyInit;
 static jmethodID midOpenFileDescriptor;
 static jmethodID midManualBackButton;
+static jmethodID midShowMessageBox;
 #ifndef SDL_DIALOG_DISABLED
 static jmethodID midShowFileDialog;
 #endif // !SDL_DIALOG_DISABLED
@@ -674,6 +675,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
     midNotifyInit = (*env)->GetStaticMethodID(env, mActivityClass, "onSDLInit", "()V");
     midOpenFileDescriptor = (*env)->GetStaticMethodID(env, mActivityClass, "openFileDescriptor", "(Ljava/lang/String;Ljava/lang/String;)I");
     midManualBackButton = (*env)->GetStaticMethodID(env, mActivityClass, "manualBackButton", "()V");
+    midShowMessageBox = (*env)->GetStaticMethodID(env, mActivityClass, "showMessageBox", "(ILjava/lang/String;Ljava/lang/String;[I[I[Ljava/lang/String;[I)I");
 #ifndef SDL_DIALOG_DISABLED
     midShowFileDialog = (*env)->GetStaticMethodID(env, mActivityClass, "showFileDialog", "([Ljava/lang/String;ZILjava/lang/String;I)Z");
 #endif // !SDL_DIALOG_DISABLED
@@ -692,6 +694,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
         !midSendMessage ||
         !midOpenFileDescriptor ||
         !midManualBackButton ||
+        !midShowMessageBox ||
 #ifndef SDL_DIALOG_DISABLED
         !midShowFileDialog ||
 #endif
@@ -3082,16 +3085,7 @@ bool Android_JNI_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *b
         colors = NULL;
     }
 
-    (*env)->DeleteLocalRef(env, clazz);
-
-    // context = SDLActivity.getContext();
-    context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
-
-    clazz = (*env)->GetObjectClass(env, context);
-
-    mid = (*env)->GetMethodID(env, clazz,
-                              "messageboxShowMessageBox", "(ILjava/lang/String;Ljava/lang/String;[I[I[Ljava/lang/String;[I)I");
-    *buttonID = (*env)->CallIntMethod(env, context, mid,
+    *buttonID = (*env)->CallStaticIntMethod(env, mActivityClass, midShowMessageBox,
                                       (jint)messageboxdata->flags,
                                       title,
                                       message,
@@ -3100,11 +3094,7 @@ bool Android_JNI_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *b
                                       button_texts,
                                       colors);
 
-    (*env)->DeleteLocalRef(env, context);
-    (*env)->DeleteLocalRef(env, clazz);
-
     // delete parameters
-
     (*env)->DeleteLocalRef(env, title);
     (*env)->DeleteLocalRef(env, message);
     (*env)->DeleteLocalRef(env, button_flags);
