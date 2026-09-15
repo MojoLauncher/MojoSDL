@@ -2,13 +2,19 @@ package git.mojo.sdl;
 
 import static android.content.Context.UI_MODE_SERVICE;
 
+import static git.mojo.sdl.SDL.mContext;
+
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.UiModeManager;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,13 +22,17 @@ import android.os.LocaleList;
 import android.os.ParcelFileDescriptor;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.SparseArray;
+import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.Surface;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -35,8 +45,6 @@ public class SDLActivity {
     private static Runnable initCallback;
 
     protected static Surface mSurface;
-    protected static Activity mContext;
-
     private static SDLClipboard mClipboard;
 
     public static void initialize() {
@@ -429,5 +437,193 @@ public class SDLActivity {
             result = lang + "_" + locale.getCountry();
         }
         return result;
+    }
+
+    /** Result of current messagebox. Also used for blocking the calling thread. */
+    protected static final int[] messageboxSelection = new int[1];
+
+    /**
+     * Shows the messagebox from UI thread and block calling thread.
+     * buttonFlags, buttonIds and buttonTexts must have same length.
+     * @param buttonFlags array containing flags for every button.
+     * @param buttonIds array containing id for every button.
+     * @param buttonTexts array containing text for every button.
+     * @param colors null for default or array of length 5 containing colors.
+     * @return button id or -1.
+     */
+    public static int showMessageBox(
+        final int flags,
+        final String title,
+        final String message,
+        final int[] buttonFlags,
+        final int[] buttonIds,
+        final String[] buttonTexts,
+        final int[] colors) {
+
+        messageboxSelection[0] = -1;
+
+        // sanity checks
+
+        if ((buttonFlags.length != buttonIds.length) && (buttonIds.length != buttonTexts.length)) {
+            return -1; // implementation broken
+        }
+
+        // collect arguments for Dialog
+
+        final Bundle args = new Bundle();
+        args.putInt("flags", flags);
+        args.putString("title", title);
+        args.putString("message", message);
+        args.putIntArray("buttonFlags", buttonFlags);
+        args.putIntArray("buttonIds", buttonIds);
+        args.putStringArray("buttonTexts", buttonTexts);
+        args.putIntArray("colors", colors);
+
+        // trigger Dialog creation on UI thread
+
+        runOnUiThread(() -> createMessageBox(args));
+
+        // block the calling thread
+
+        synchronized (messageboxSelection) {
+            try {
+                messageboxSelection.wait();
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+                return -1;
+            }
+        }
+
+        // return selected value
+
+        return messageboxSelection[0];
+    }
+
+    private static void runOnUiThread(Runnable runnable) {
+        mContext.runOnUiThread(runnable);
+    }
+
+    private static void createMessageBox(Bundle args) {
+
+        // TODO set values from "flags" to messagebox dialog
+
+        // get colors
+
+        int[] colors = args.getIntArray("colors");
+        int backgroundColor;
+        int textColor;
+        int buttonBorderColor;
+        int buttonBackgroundColor;
+        int buttonSelectedColor;
+        if (colors != null) {
+            int i = -1;
+            backgroundColor = colors[++i];
+            textColor = colors[++i];
+            buttonBorderColor = colors[++i];
+            buttonBackgroundColor = colors[++i];
+            buttonSelectedColor = colors[++i];
+        } else {
+            backgroundColor = Color.TRANSPARENT;
+            textColor = Color.TRANSPARENT;
+            buttonBorderColor = Color.TRANSPARENT;
+            buttonBackgroundColor = Color.TRANSPARENT;
+            buttonSelectedColor = Color.TRANSPARENT;
+        }
+
+        // create dialog with title and a listener to wake up calling thread
+
+        final AlertDialog dialog = new AlertDialog.Builder(mContext).create();
+        dialog.setTitle(args.getString("title"));
+        dialog.setCancelable(false);
+        dialog.setOnDismissListener(unused -> {
+            synchronized (messageboxSelection) {
+                messageboxSelection.notify();
+            }
+        });
+
+        // create text
+
+        TextView message = new TextView(mContext);
+        message.setGravity(Gravity.CENTER);
+        message.setText(args.getString("message"));
+        if (textColor != Color.TRANSPARENT) {
+            message.setTextColor(textColor);
+        }
+
+        // create buttons
+
+        int[] buttonFlags = args.getIntArray("buttonFlags");
+        int[] buttonIds = args.getIntArray("buttonIds");
+        String[] buttonTexts = args.getStringArray("buttonTexts");
+
+        final SparseArray<Button> mapping = new SparseArray<Button>();
+
+        LinearLayout buttons = new LinearLayout(mContext);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.CENTER);
+        for (int i = 0; i < buttonTexts.length; ++i) {
+            Button button = new Button(mContext);
+            final int id = buttonIds[i];
+            button.setOnClickListener(v -> {
+                messageboxSelection[0] = id;
+                dialog.dismiss();
+            });
+            if (buttonFlags[i] != 0) {
+                // see SDL_messagebox.h
+                if ((buttonFlags[i] & 0x00000001) != 0) {
+                    mapping.put(KeyEvent.KEYCODE_ENTER, button);
+                }
+                if ((buttonFlags[i] & 0x00000002) != 0) {
+                    mapping.put(KeyEvent.KEYCODE_ESCAPE, button); /* API 11 */
+                }
+            }
+            button.setText(buttonTexts[i]);
+            if (textColor != Color.TRANSPARENT) {
+                button.setTextColor(textColor);
+            }
+            if (buttonBorderColor != Color.TRANSPARENT) {
+                // TODO set color for border of messagebox button
+            }
+            if (buttonBackgroundColor != Color.TRANSPARENT) {
+                Drawable drawable = button.getBackground();
+                if (drawable == null) {
+                    // setting the color this way removes the style
+                    button.setBackgroundColor(buttonBackgroundColor);
+                } else {
+                    // setting the color this way keeps the style (gradient, padding, etc.)
+                    drawable.setColorFilter(buttonBackgroundColor, PorterDuff.Mode.MULTIPLY);
+                }
+            }
+            if (buttonSelectedColor != Color.TRANSPARENT) {
+                // TODO set color for selected messagebox button
+            }
+            buttons.addView(button);
+        }
+
+        // create content
+
+        LinearLayout content = new LinearLayout(mContext);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(message);
+        content.addView(buttons);
+        if (backgroundColor != Color.TRANSPARENT) {
+            content.setBackgroundColor(backgroundColor);
+        }
+
+        // add content to dialog and return
+
+        dialog.setView(content);
+        dialog.setOnKeyListener((d, keyCode, event) -> {
+            Button button = mapping.get(keyCode);
+            if (button != null) {
+                if (event.getAction() == KeyEvent.ACTION_UP) {
+                    button.performClick();
+                }
+                return true; // also for ignored actions
+            }
+            return false;
+        });
+
+        dialog.show();
     }
 }
