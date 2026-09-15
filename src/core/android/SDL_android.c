@@ -1586,9 +1586,10 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeVisibilityChanged)(
 {
     SDL_LockMutex(Android_ActivityMutex);
 #ifndef SDL_VIDEO_DISABLED
-    if (Android_Window) {
-        SDL_SendWindowEvent(Android_Window,
-                            visible ? SDL_EVENT_WINDOW_SHOWN : SDL_EVENT_WINDOW_HIDDEN, 0, 0);
+    if(visible) {
+        SDL_ShowWindow(Android_Window);
+    } else {
+        SDL_HideWindow(Android_Window);
     }
 #endif
     SDL_UnlockMutex(Android_ActivityMutex);

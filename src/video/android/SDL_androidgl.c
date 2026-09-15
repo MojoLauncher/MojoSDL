@@ -38,13 +38,16 @@
 
 bool Android_GLES_MakeCurrent(SDL_VideoDevice *_this, SDL_Window *window, SDL_GLContext context)
 {
+    if(!window) {
+        return false;
+    }
     // In some *rare* cases the given window might be offscreen one. In such cases we'll swap the window
     // so we don't render onto pbuffer
-    // This is currently happens with Minecraft 26.3
-    if(Android_Window != window) {
-        Android_MakeWindowCurrent(_this, window);
+    if(Android_Window && Android_Window != window && !(Android_Window->flags & SDL_WINDOW_HIDDEN)) {
+        SDL_Log("Swapped current android window %s with another window %s", Android_Window->title, window->title);
+        Android_SwapWindow(_this, window);
     }
-    if (window && context) {
+    if (context) {
         return SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, context);
     } else {
         return SDL_EGL_MakeCurrent(_this, NULL, NULL);

@@ -72,8 +72,18 @@ bool Android_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
         return false;
     }
 
+    if(window->flags & SDL_WINDOW_HIDDEN) {
+        result = Android_CreateOffscreenWindow(_this, window, create_props);
+        goto endfunction;
+    }
+
+    if(Android_Window && window->flags & SDL_WINDOW_VULKAN) {
+        result = SDL_SetError("Android does not support creating multiple Vulkan windows");
+        goto endfunction;
+    }
+
     if(Android_Window) {
-        SDL_Log("Creating offscreen window as Android does not support multiple windows");
+        SDL_Log("Creating offscreen window as Android does not support multiple visible windows");
         // We only store a single owner window, other ones are offscreen
         result = Android_CreateOffscreenWindow(_this, window, create_props);
         goto endfunction;
@@ -215,11 +225,12 @@ void Android_SetWindowResizable(SDL_VideoDevice *_this, SDL_Window *window, bool
     Android_JNI_SetOrientation(window->w, window->h, window->flags & SDL_WINDOW_RESIZABLE, SDL_GetHint(SDL_HINT_ORIENTATIONS));
 }
 
-void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window)
+void Android_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
 {
-    if(!window) {
+    if(!window || !Android_Window) {
         return; // Yes, this happens. Sometimes
     }
+    SDL_Log("Show window: %s", window->title);
     SDL_WindowData *data = window->internal;
     if(!data) {
         return;
@@ -250,12 +261,81 @@ void Android_MakeWindowCurrent(SDL_VideoDevice *_this, SDL_Window *window)
         if(data->egl_surface == EGL_NO_SURFACE) {
             // This is purposely left unhandled so the app can "safely" crash with EGL_BAD_SURFACE
             // or not crash and fill logcat with spam from the system EGL :trolley:
-            SDL_Log("Failed to create EGLSurface on swapped window!");
+            SDL_Log("Failed to create EGLSurface on a swapped window!");
         }
         data->surface_changed = true;
     }
 #endif
     Android_Window = window;
+}
+
+void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
+{
+    if(!window) {
+        return; // Yes, this happens. Sometimes
+    }
+    SDL_Log("Show window: %s", window->title);
+    SDL_WindowData *data = window->internal;
+    if(!data) {
+        return;
+    }
+    ANativeWindow* anw = Android_JNI_GetNativeWindow();
+    if(!anw){
+        SDL_Log("Failed to fetch ANativeWindow!");
+        return;
+    }
+    data->native_window = anw;
+
+    SDL_SetMouseFocus(window);
+    SDL_SetKeyboardFocus(window);
+
+    if(!Android_Window)
+        Android_Window = window;
+
+#ifdef SDL_VIDEO_OPENGL_EGL
+    _this->egl_data->eglMakeCurrent(_this->egl_data->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    if (data->egl_surface != EGL_NO_SURFACE) {
+        SDL_EGL_DestroySurface(_this, data->egl_surface);
+    }
+    if(window->flags & SDL_WINDOW_OPENGL) {
+        data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
+        if(data->egl_surface == EGL_NO_SURFACE) {
+            // This is 99% caused by incorrect usage: ShowWindow should be called only if the current window is hidden
+            // See Android_SwapWindow
+            SDL_Log("Failed to create EGLSurface on a swapped window!");
+        }
+        data->surface_changed = true;
+        SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+        SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, (EGLContext) ctx);
+    }
+#endif
+}
+
+void Android_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
+{
+    if(!window || !Android_Window) {
+        return;
+    }
+    SDL_Log("Hide window: %s", window->title);
+    SDL_WindowData *data = window->internal;
+    if(!data) {
+        return;
+    }
+    data->native_window = NULL;
+#ifdef SDL_VIDEO_OPENGL_EGL
+    if(window->flags & SDL_WINDOW_OPENGL) {
+        _this->egl_data->eglMakeCurrent(_this->egl_data->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (data->egl_surface != EGL_NO_SURFACE) {
+            SDL_EGL_DestroySurface(_this, data->egl_surface);
+        }
+        data->egl_surface = SDL_EGL_CreateOffscreenSurface(_this,
+                                                                               Android_SurfaceWidth,
+                                                                               Android_SurfaceHeight);
+        data->surface_changed = true;
+        SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+        SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, (EGLContext) ctx);
+    }
+#endif
 }
 
 static void Android_DestroyOffscreenWindow(SDL_VideoDevice *_this, SDL_Window *window)

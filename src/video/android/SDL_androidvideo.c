@@ -109,6 +109,8 @@ static SDL_VideoDevice *Android_CreateDevice(void)
     device->SetWindowTitle = Android_SetWindowTitle;
     device->SetWindowFullscreen = Android_SetWindowFullscreen;
     device->MinimizeWindow = Android_MinimizeWindow;
+    device->HideWindow = Android_HideWindow;
+    device->ShowWindow = Android_ShowWindow;
     device->SetWindowResizable = Android_SetWindowResizable;
     device->DestroyWindow = Android_DestroyWindow;
 
