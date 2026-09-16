@@ -36,6 +36,8 @@
 
 #include <dlfcn.h>
 
+#include "mojoexec.h"
+
 bool Android_GLES_MakeCurrent(SDL_VideoDevice *_this, SDL_Window *window, SDL_GLContext context)
 {
     // In some *rare* cases the given window might be offscreen one. In such cases we'll swap the window
@@ -45,6 +47,7 @@ bool Android_GLES_MakeCurrent(SDL_VideoDevice *_this, SDL_Window *window, SDL_GL
         Android_MakeWindowCurrent(_this, window);
     }
     if (window && context) {
+        mojoexec_make_bigcore_affine();
         return SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, context);
     } else {
         return SDL_EGL_MakeCurrent(_this, NULL, NULL);
