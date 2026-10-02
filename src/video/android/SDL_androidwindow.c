@@ -235,7 +235,7 @@ void Android_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
     if(!data) {
         return;
     }
-    ANativeWindow* anw = Android_JNI_GetNativeWindow();
+    ANativeWindow* anw = Android_JNI_WaitForNativeWindow();
     if(!anw){
         SDL_Log("Failed to fetch ANativeWindow!");
         return;
@@ -279,7 +279,7 @@ void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
     if(!data) {
         return;
     }
-    ANativeWindow* anw = Android_JNI_GetNativeWindow();
+    ANativeWindow* anw = Android_JNI_WaitForNativeWindow();
     if(!anw){
         SDL_Log("Failed to fetch ANativeWindow!");
         return;
@@ -313,7 +313,7 @@ void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
 
 void Android_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
 {
-    if(!window || !Android_Window) {
+    if(!window) {
         return;
     }
     SDL_Log("Hide window: %s", window->title);

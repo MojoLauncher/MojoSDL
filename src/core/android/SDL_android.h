@@ -76,6 +76,7 @@ extern void Android_JNI_ShowScreenKeyboard(int input_type, SDL_Rect *inputRect);
 extern void Android_JNI_HideScreenKeyboard(void);
 bool Android_JNI_SuspendScreenSaver(bool suspend);
 extern ANativeWindow *Android_JNI_GetNativeWindow(void);
+extern ANativeWindow *Android_JNI_WaitForNativeWindow(void);
 
 extern SDL_DisplayOrientation Android_JNI_GetDisplayNaturalOrientation(void);
 // Also used by the camera subsystem, which is safe because camera requires video.

@@ -172,6 +172,7 @@ static SDL_Mutex *Android_LifecycleMutex = NULL;
 static SDL_Semaphore *Android_LifecycleEventSem = NULL;
 static SDL_AndroidLifecycleEvent Android_LifecycleEvents[SDL_NUM_ANDROID_LIFECYCLE_EVENTS];
 static int Android_NumLifecycleEvents;
+static SDL_Condition *Android_WindowCondition = NULL;
 
 // Java class SDLActivity
 JNIEXPORT jstring JNICALL SDL_JAVA_INTERFACE(nativeGetVersion)(
@@ -608,8 +609,8 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
 {
     __android_log_print(ANDROID_LOG_VERBOSE, "SDL", "nativeSetupJNI()");
 
-    // Start with a clean slate
-    SDL_ClearError();
+    // Setup window wait condition
+    Android_WindowCondition = SDL_CreateCondition();
 
     /*
      * Create mThreadKey so we can keep track of the JNIEnv assigned to each thread
@@ -1251,6 +1252,8 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
         }
     }
 
+    SDL_BroadcastCondition(Android_WindowCondition);
+
     SDL_UnlockMutex(Android_ActivityMutex);
 }
 
@@ -1258,22 +1261,6 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceChanged)(JNIEnv *env, jclass jcls)
 {
     SDL_LockMutex(Android_ActivityMutex);
-
-#ifdef SDL_VIDEO_OPENGL_EGL
-    if (Android_Window && (Android_Window->flags & SDL_WINDOW_OPENGL)) {
-        SDL_VideoDevice *_this = SDL_GetVideoDevice();
-        SDL_WindowData *data = Android_Window->internal;
-
-        // If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here
-        if (data->egl_surface == EGL_NO_SURFACE) {
-            data->egl_surface = SDL_EGL_CreateSurface(_this, Android_Window, (NativeWindowType)data->native_window);
-            SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_SURFACE_POINTER, data->egl_surface);
-            data->surface_changed = true;
-        }
-
-        // GL Context handling is done in the event loop because this function is run from the Java thread
-    }
-#endif
 
     if (Android_Window) {
         Android_RestoreScreenKeyboard(SDL_GetVideoDevice(), Android_Window);
@@ -1306,12 +1293,9 @@ retry:
             }
         }
 
-#ifdef SDL_VIDEO_OPENGL_EGL
-        if (data->egl_surface != EGL_NO_SURFACE) {
-            SDL_EGL_DestroySurface(SDL_GetVideoDevice(), data->egl_surface);
-            data->egl_surface = EGL_NO_SURFACE;
-        }
-#endif
+        // We need to swap the context to offscreen surface before ANativeWindow invalidates
+        // to prevent EGL_BAD_SURFACE leaks to the application
+        SDL_HideWindow(Android_Window);
 
         if (data->native_window) {
             ANativeWindow_release(data->native_window);
@@ -1581,16 +1565,19 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeFocusChanged)(
     SDL_UnlockMutex(Android_ActivityMutex);
 }
 
+static void show_window_callback(void*) {
+    SDL_ShowWindow(Android_Window);
+}
+static void hide_window_callback(void*) {
+    SDL_HideWindow(Android_Window);
+}
+
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeVisibilityChanged)(
         JNIEnv *env, jclass jcls, jboolean visible)
 {
     SDL_LockMutex(Android_ActivityMutex);
 #ifndef SDL_VIDEO_DISABLED
-    if(visible) {
-        SDL_ShowWindow(Android_Window);
-    } else {
-        SDL_HideWindow(Android_Window);
-    }
+    SDL_RunOnMainThread(visible ? show_window_callback : hide_window_callback, NULL, false);
 #endif
     SDL_UnlockMutex(Android_ActivityMutex);
 }
@@ -2921,7 +2908,32 @@ ANativeWindow *Android_JNI_GetNativeWindow(void)
         anw = ANativeWindow_fromSurface(env, s);
         (*env)->DeleteLocalRef(env, s);
     }
+    return anw;
+}
 
+ANativeWindow *Android_JNI_WaitForNativeWindow(void)
+{
+    ANativeWindow *anw = NULL;
+    jobject s;
+
+    do {
+        JNIEnv *env = Android_JNI_GetEnv();
+        s = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetNativeSurface);
+        if(s) {
+            anw = ANativeWindow_fromSurface(env, s);
+            if(anw) {
+                (*env)->DeleteLocalRef(env, s);
+                SDL_Log("Native window fetched : %p", anw);
+            }
+        }
+        if(!s || !anw) {
+            SDL_Log("ANativeWindow is not available, waiting till it arrives...");
+            SDL_LockMutex(Android_LifecycleMutex);
+            SDL_WaitConditionTimeout(Android_WindowCondition, Android_LifecycleMutex, 8000);
+            SDL_UnlockMutex(Android_LifecycleMutex);
+            SDL_Log("Timeout fetching ANativeWindow, contact developers");
+        }
+    } while(!anw);
     return anw;
 }
 
