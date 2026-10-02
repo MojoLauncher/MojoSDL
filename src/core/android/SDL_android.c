@@ -2934,7 +2934,9 @@ ANativeWindow *Android_JNI_WaitForNativeWindow(void)
             SDL_LockMutex(Android_LifecycleMutex);
             SDL_WaitConditionTimeout(Android_WindowCondition, Android_LifecycleMutex, 8000);
             SDL_UnlockMutex(Android_LifecycleMutex);
-            SDL_Log("Timeout fetching ANativeWindow, contact developers");
+            if(!anw) {
+                SDL_Log("Timeout fetching ANativeWindow, contact developers");
+            }
         }
     } while(!anw);
     return anw;
