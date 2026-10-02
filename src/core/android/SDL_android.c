@@ -609,6 +609,9 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
 {
     __android_log_print(ANDROID_LOG_VERBOSE, "SDL", "nativeSetupJNI()");
 
+    // Start with a clean slate
+    SDL_ClearError();
+
     // Setup window wait condition
     Android_WindowCondition = SDL_CreateCondition();
 
