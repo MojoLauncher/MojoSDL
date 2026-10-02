@@ -34,6 +34,7 @@ extern void Android_SetWindowResizable(SDL_VideoDevice *_this, SDL_Window *windo
 extern void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window);
 extern void Android_HideWindow(SDL_VideoDevice *_this, SDL_Window *window);
 extern void Android_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window);
+extern void Android_ManageSurface(SDL_VideoDevice *_this, SDL_Window *window);
 extern void Android_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window);
 extern SDL_Window *Android_Window;
 
@@ -45,6 +46,7 @@ struct SDL_WindowData
     int has_swap_interval;  // Save/Restore the swap interval / vsync
     int swap_interval;
     bool surface_changed; // Mark this to rebind surface on the current GL context thread
+    bool offscreen_surface; // Should we render into a pbuffer
 #endif
     bool backup_done;
     ANativeWindow *native_window;
