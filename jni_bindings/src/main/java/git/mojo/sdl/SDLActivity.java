@@ -152,6 +152,10 @@ public class SDLActivity {
         return true;
     }
 
+    public static void setBackButtonTrapEnabled(boolean enabled) {
+        // Unsupported
+    }
+
     public static void initTouch() {
         // TODO
     }

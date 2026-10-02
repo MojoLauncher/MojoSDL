@@ -48,7 +48,7 @@
 #include <dlfcn.h>
 #include <time.h>
 
-#define SDL_JAVA_PREFIX                               org_libsdl_app
+#define SDL_JAVA_PREFIX                               git_mojo_sdl
 #define CONCAT1(prefix, class, function)              CONCAT2(prefix, class, function)
 #define CONCAT2(prefix, class, function)              Java_##prefix##_##class##_##function
 #define SDL_JAVA_INTERFACE(function)                  CONCAT1(SDL_JAVA_PREFIX, SDLActivity, function)
