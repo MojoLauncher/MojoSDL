@@ -1253,6 +1253,8 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
         if (data->native_window == NULL) {
             SDL_SetError("Could not fetch native window from UI thread");
         }
+        data->offscreen_surface = false;
+        data->surface_changed = true;
     }
 
     SDL_BroadcastCondition(Android_WindowCondition);
@@ -1268,6 +1270,8 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceChanged)(JNIEnv *env, j
     if (Android_Window) {
         Android_RestoreScreenKeyboard(SDL_GetVideoDevice(), Android_Window);
     }
+
+    SDL_BroadcastCondition(Android_WindowCondition);
 
     SDL_UnlockMutex(Android_ActivityMutex);
 }
@@ -1296,9 +1300,9 @@ retry:
             }
         }
 
-        // We need to swap the context to offscreen surface before ANativeWindow invalidates
-        // to prevent EGL_BAD_SURFACE leaks to the application
-        SDL_HideWindow(Android_Window);
+        // Next SwapBuffers call will automatically convert EGLSurface to offscreen one
+        data->surface_changed = true;
+        data->offscreen_surface = true;
 
         if (data->native_window) {
             ANativeWindow_release(data->native_window);
@@ -1568,19 +1572,18 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeFocusChanged)(
     SDL_UnlockMutex(Android_ActivityMutex);
 }
 
-static void show_window_callback(void*) {
-    SDL_ShowWindow(Android_Window);
-}
-static void hide_window_callback(void*) {
-    SDL_HideWindow(Android_Window);
-}
-
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeVisibilityChanged)(
         JNIEnv *env, jclass jcls, jboolean visible)
 {
     SDL_LockMutex(Android_ActivityMutex);
 #ifndef SDL_VIDEO_DISABLED
-    SDL_RunOnMainThread(visible ? show_window_callback : hide_window_callback, NULL, false);
+    // Here we now send only events to prevent double surface management
+    if(visible) {
+        SDL_SendWindowEvent(Android_Window, SDL_EVENT_WINDOW_SHOWN, 0, 0);
+    }
+    else {
+        SDL_SendWindowEvent(Android_Window, SDL_EVENT_WINDOW_HIDDEN, 0, 0);
+    }
 #endif
     SDL_UnlockMutex(Android_ActivityMutex);
 }
@@ -2932,10 +2935,10 @@ ANativeWindow *Android_JNI_WaitForNativeWindow(void)
         if(!s || !anw) {
             SDL_Log("ANativeWindow is not available, waiting till it arrives...");
             SDL_LockMutex(Android_LifecycleMutex);
-            SDL_WaitConditionTimeout(Android_WindowCondition, Android_LifecycleMutex, 8000);
+            SDL_WaitConditionTimeout(Android_WindowCondition, Android_LifecycleMutex, 2000);
             SDL_UnlockMutex(Android_LifecycleMutex);
             if(!anw) {
-                SDL_Log("Timeout fetching ANativeWindow, contact developers");
+                SDL_Log("Did not receive ANativeWindow, trying again...");
             }
         }
     } while(!anw);

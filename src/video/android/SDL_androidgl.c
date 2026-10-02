@@ -82,8 +82,8 @@ bool Android_GLES_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
 
     // EGLSurface might have changed at this point, so it needs rebinding
     if(window->internal->surface_changed){
-        SDL_GLContext ctx = SDL_GL_GetCurrentContext();
-        SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, (EGLContext) ctx);
+        // Method below will recreate needed surface automatically
+        Android_ManageSurface(_this, window);
         window->internal->surface_changed = false;
     }
 
