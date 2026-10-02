@@ -60,6 +60,7 @@ void Android_LockActivityMutex(void);
 void Android_UnlockActivityMutex(void);
 
 void Android_SetAllowRecreateActivity(bool enabled);
+void Android_JNI_SetBackButtonTrapActive(bool enabled);
 
 #ifndef SDL_VIDEO_DISABLED
 #include <EGL/eglplatform.h>
@@ -114,6 +115,10 @@ size_t Android_JNI_FileWrite(void *userdata, const void *buffer, size_t size, SD
 bool Android_JNI_FileClose(void *userdata);
 bool Android_JNI_EnumerateAssetDirectory(const char *path, SDL_EnumerateDirectoryCallback cb, void *userdata);
 bool Android_JNI_GetAssetPathInfo(const char *path, SDL_PathInfo *info);
+
+#define SDL_PlatformEnumerateAssetDirectory Android_JNI_EnumerateAssetDirectory
+#define SDL_GetPlatformInternalStoragePath SDL_GetAndroidInternalStoragePath
+#define SDL_PlatformGetAssetPathInfo Android_JNI_GetAssetPathInfo
 
 // Environment support
 void Android_JNI_GetManifestEnvironmentVariables(void);

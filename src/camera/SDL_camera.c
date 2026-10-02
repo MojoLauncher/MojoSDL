@@ -44,6 +44,9 @@ static const CameraBootStrap *const bootstrap[] = {
 #ifdef SDL_CAMERA_DRIVER_ANDROID
     &ANDROIDCAMERA_bootstrap,
 #endif
+#ifdef SDL_CAMERA_DRIVER_OPENHARMONY
+    &OPENHARMONYCAMERA_bootstrap,
+#endif
 #ifdef SDL_CAMERA_DRIVER_EMSCRIPTEN
     &EMSCRIPTENCAMERA_bootstrap,
 #endif
@@ -1477,7 +1480,7 @@ static void SDLCALL DestroyCameraHashItem(void *userdata, const void *key, const
     SDL_free(device);
 }
 
-bool SDL_CameraInit(const char *driver_name)
+bool SDL_InitCamera(const char *driver_name)
 {
     if (SDL_GetCurrentCameraDriver()) {
         SDL_QuitCamera(); // shutdown driver if already running.

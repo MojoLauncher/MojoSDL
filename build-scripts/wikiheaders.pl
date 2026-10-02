@@ -1128,8 +1128,8 @@ if (defined $readmesubdir) {
 }
 
 opendir(DH, $incpath) or die("Can't opendir '$incpath': $!\n");
-while (my $d = readdir(DH)) {
-    my $dent = $d;
+foreach (sort(readdir(DH))) {
+    my $dent = $_;
     next if not $dent =~ /$selectheaderregex/;  # just selected headers.
     open(FH, '<', "$incpath/$dent") or die("Can't open '$incpath/$dent': $!\n");
 
@@ -1786,20 +1786,20 @@ while (my $d = readdir(DH)) {
             } elsif (/\A\= (.*?) \=\Z/) {
                 $firstline = 0;
                 $current_section = ($1 eq $sym) ? '[Brief]' : $1;
-                die("Doubly-defined section '$current_section' in '$dent'!\n") if defined $sections{$current_section};
+                die("Doubly-defined section '$current_section' in '$wikipath/$dent'!\n") if defined $sections{$current_section};
                 push @section_order, $current_section;
                 $sections{$current_section} = '';
             } elsif (/\A\=\= (.*?) \=\=\Z/) {
                 $firstline = 0;
                 $current_section = ($1 eq $sym) ? '[Brief]' : $1;
-                die("Doubly-defined section '$current_section' in '$dent'!\n") if defined $sections{$current_section};
+                die("Doubly-defined section '$current_section' in '$wikipath/$dent'!\n") if defined $sections{$current_section};
                 push @section_order, $current_section;
                 $sections{$current_section} = '';
                 next;
             } elsif (/\A\-\-\-\-\Z/) {
                 $firstline = 0;
                 $current_section = '[footer]';
-                die("Doubly-defined section '$current_section' in '$dent'!\n") if defined $sections{$current_section};
+                die("Doubly-defined section '$current_section' in '$wikipath/$dent'!\n") if defined $sections{$current_section};
                 push @section_order, $current_section;
                 $sections{$current_section} = '';
                 next;
@@ -1811,14 +1811,14 @@ while (my $d = readdir(DH)) {
             } elsif (/\A\#+ (.*?)\Z/) {
                 $firstline = 0;
                 $current_section = ($1 eq $sym) ? '[Brief]' : $1;
-                die("Doubly-defined section '$current_section' in '$dent'!\n") if defined $sections{$current_section};
+                die("Doubly-defined section '$current_section' in '$wikipath/$dent'!\n") if defined $sections{$current_section};
                 push @section_order, $current_section;
                 $sections{$current_section} = '';
                 next;
             } elsif (/\A\-\-\-\-\Z/) {
                 $firstline = 0;
                 $current_section = '[footer]';
-                die("Doubly-defined section '$current_section' in '$dent'!\n") if defined $sections{$current_section};
+                die("Doubly-defined section '$current_section' in '$wikipath/$dent'!\n") if defined $sections{$current_section};
                 push @section_order, $current_section;
                 $sections{$current_section} = '';
                 next;

@@ -142,6 +142,30 @@ static enum WaylandModeScale GetModeScaleMethod(void)
     return scale_mode;
 }
 
+typedef struct BorderInsets
+{
+    int left;
+    int top;
+    int right;
+    int bottom;
+} BorderInsets;
+
+// The border insets from the window properties; they only apply to xdg-toplevel windows.
+static void GetBorderInsets(SDL_Window *window, BorderInsets *insets)
+{
+    SDL_zerop(insets);
+    if (!window->internal->enable_insets) {
+        return;
+    }
+    if (window->internal->shell_surface_type == WAYLAND_SHELL_SURFACE_TYPE_XDG_TOPLEVEL) {
+        const SDL_PropertiesID props = SDL_GetWindowProperties(window);
+        insets->left = (int)SDL_clamp(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_WAYLAND_BORDER_INSET_LEFT_NUMBER, 0), 0, SDL_MAX_SINT16);
+        insets->top = (int)SDL_clamp(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_WAYLAND_BORDER_INSET_TOP_NUMBER, 0), 0, SDL_MAX_SINT16);
+        insets->right = (int)SDL_clamp(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_WAYLAND_BORDER_INSET_RIGHT_NUMBER, 0), 0, SDL_MAX_SINT16);
+        insets->bottom = (int)SDL_clamp(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_WAYLAND_BORDER_INSET_BOTTOM_NUMBER, 0), 0, SDL_MAX_SINT16);
+    }
+}
+
 static void SetMinMaxDimensions(SDL_Window *window)
 {
     SDL_WindowData *wind = window->internal;
@@ -209,6 +233,19 @@ static void SetMinMaxDimensions(SDL_Window *window)
         if (!wind->shell_surface.xdg.toplevel.xdg_toplevel) {
             return; // Can't do anything yet, wait for ShowWindow
         }
+        /* The limits are in window geometry space; keep an existing minimum at 1 or more,
+         * or the window can be spuriously closed.
+         */
+        BorderInsets insets;
+        GetBorderInsets(window, &insets);
+        min_width = SDL_max(min_width - (insets.left + insets.right), min_width ? 1 : 0);
+        min_height = SDL_max(min_height - (insets.top + insets.bottom), min_height ? 1 : 0);
+        if (max_width) {
+            max_width = SDL_max(max_width - (insets.left + insets.right), 1);
+        }
+        if (max_height) {
+            max_height = SDL_max(max_height - (insets.top + insets.bottom), 1);
+        }
         xdg_toplevel_set_min_size(wind->shell_surface.xdg.toplevel.xdg_toplevel,
                                   min_width,
                                   min_height);
@@ -255,9 +292,21 @@ static void EnsurePopupPositionIsValid(SDL_Window *window, int *x, int *y)
     }
 }
 
+// The window geometry: the explicitly set one, or the full surface if SDL has never set it.
+static void GetWindowGeometry(SDL_WindowData *wind, SDL_Rect *geometry)
+{
+    *geometry = wind->explicit_geometry;
+    if (SDL_RectEmpty(geometry)) {
+        geometry->x = 0;
+        geometry->y = 0;
+        geometry->w = wind->current.logical_width;
+        geometry->h = wind->current.logical_height;
+    }
+}
+
 static void AdjustPopupOffset(SDL_Window *popup, int *x, int *y)
 {
-    // Adjust the popup positioning, if necessary
+    // Positioner offsets are relative to the origin of the parent's window geometry.
 #ifdef HAVE_LIBDECOR_H
     if (popup->parent->internal->shell_surface_type == WAYLAND_SHELL_SURFACE_TYPE_LIBDECOR) {
         int adj_x, adj_y;
@@ -265,8 +314,12 @@ static void AdjustPopupOffset(SDL_Window *popup, int *x, int *y)
                                             *x, *y, &adj_x, &adj_y);
         *x = adj_x;
         *y = adj_y;
-    }
+    } else
 #endif
+    {
+        *x -= popup->parent->internal->explicit_geometry.x;
+        *y -= popup->parent->internal->explicit_geometry.y;
+    }
 }
 
 static void RepositionPopup(SDL_Window *window, bool use_current_position)
@@ -285,7 +338,9 @@ static void RepositionPopup(SDL_Window *window, bool use_current_position)
             y = PixelToPoint(window->parent, y);
         }
         AdjustPopupOffset(window, &x, &y);
-        xdg_positioner_set_anchor_rect(wind->shell_surface.xdg.popup.xdg_positioner, 0, 0, window->parent->internal->current.logical_width, window->parent->internal->current.logical_height);
+        SDL_Rect parent_geometry;
+        GetWindowGeometry(window->parent->internal, &parent_geometry);
+        xdg_positioner_set_anchor_rect(wind->shell_surface.xdg.popup.xdg_positioner, 0, 0, parent_geometry.w, parent_geometry.h);
         xdg_positioner_set_size(wind->shell_surface.xdg.popup.xdg_positioner, wind->current.logical_width, wind->current.logical_height);
         xdg_positioner_set_offset(wind->shell_surface.xdg.popup.xdg_positioner, x, y);
         xdg_popup_reposition(wind->shell_surface.xdg.popup.xdg_popup,
@@ -398,18 +453,34 @@ static void ConfigureWindowGeometry(SDL_Window *window)
             viewport_height = data->requested.pixel_height;
         }
 
-        if (data->viewport && data->waylandData->subcompositor && !data->floating && !data->is_fullscreen) {
-            if (window->min_w) {
-                viewport_width = SDL_max(viewport_width, window->min_w);
+        if (!data->enable_insets &&
+            data->shell_surface_status != WAYLAND_SHELL_SURFACE_STATUS_HIDDEN &&
+            data->viewport && data->waylandData->subcompositor && !data->floating && !data->is_fullscreen) {
+            int min_width, min_height, max_width, max_height;
+            if (window->flags & SDL_WINDOW_RESIZABLE) {
+                min_width = window->min_w;
+                min_height = window->min_h;
+                max_width = window->max_w;
+                max_height = window->max_h;
+            } else {
+                // Use the fixed size in the odd case where a non-resizable window somehow wound up tiled or maximized.
+                min_width = window->floating.w;
+                min_height = window->floating.h;
+                max_width = window->floating.w;
+                max_height = window->floating.h;
             }
-            if (window->min_h) {
-                viewport_height = SDL_max(viewport_height, window->min_h);
+
+            if (min_width) {
+                viewport_width = SDL_max(viewport_width, min_width);
             }
-            if (window->max_w) {
-                viewport_width = SDL_min(viewport_width, window->max_w);
+            if (min_height) {
+                viewport_height = SDL_max(viewport_height, min_height);
             }
-            if (window->max_h) {
-                viewport_height = SDL_min(viewport_height, window->max_h);
+            if (max_width) {
+                viewport_width = SDL_min(viewport_width, max_width);
+            }
+            if (max_height) {
+                viewport_height = SDL_min(viewport_height, max_height);
             }
 
             float aspect = (float)viewport_width / (float)viewport_height;
@@ -508,7 +579,7 @@ static void ConfigureWindowGeometry(SDL_Window *window)
     /* Calculate the mask size and offset.
      * Fullscreen windows are centered and masked automatically by the compositor, unless it lacks the capability.
      */
-    if (data->viewport && data->waylandData->subcompositor && (!data->is_fullscreen || ShouldMaskFullscreen()) &&
+    if (!data->enable_insets && data->viewport && data->waylandData->subcompositor && (!data->is_fullscreen || ShouldMaskFullscreen()) &&
         (viewport_width != data->current.logical_width || viewport_height != data->current.logical_height)) {
         struct wl_buffer *old_buffer = NULL;
 
@@ -573,19 +644,38 @@ static void ConfigureWindowGeometry(SDL_Window *window)
         data->mask.mapped = false;
     }
 
-    /*
-     * The surface geometry, opaque region and pointer confinement region only
-     * need to be recalculated if the output size has changed.
+    if (data->shell_surface_type == WAYLAND_SHELL_SURFACE_TYPE_XDG_TOPLEVEL && data->shell_surface.xdg.surface &&
+        (data->enable_insets || !data->viewport)) {
+        /* The window geometry is the surface minus the declared border insets. They don't apply
+         * when an exact size is required (maximized/fullscreen).
+         */
+        BorderInsets insets;
+        GetBorderInsets(window, &insets);
+        const bool use_insets = (insets.left || insets.top || insets.right || insets.bottom) &&
+                                !(window->flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN));
+        SDL_Rect geometry = { 0, 0, data->current.logical_width, data->current.logical_height };
+        if (use_insets) {
+            geometry.x = insets.left;
+            geometry.y = insets.top;
+            geometry.w = SDL_max(geometry.w - (insets.left + insets.right), 1);
+            geometry.h = SDL_max(geometry.h - (insets.top + insets.bottom), 1);
+        }
+        /* An explicitly set geometry does not track the surface, so it must be kept in sync
+         * once set. Otherwise this is only done when viewports aren't supported and the size
+         * has changed (XXX: a hack) to avoid a potential protocol violation if a buffer with
+         * an old size is committed.
+         */
+        if ((use_insets || !SDL_RectEmpty(&data->explicit_geometry) || (!data->viewport && window_size_changed)) &&
+            !SDL_RectsEqual(&geometry, &data->explicit_geometry)) {
+            xdg_surface_set_window_geometry(data->shell_surface.xdg.surface, geometry.x, geometry.y, geometry.w, geometry.h);
+            data->explicit_geometry = geometry;
+        }
+    }
+
+    /* The opaque region and pointer confinement region only need to be
+     * recalculated if the output size has changed.
      */
     if (window_size_changed) {
-        /* XXX: This is a hack and only set on the xdg-toplevel path when viewports
-         *      aren't supported to avoid a potential protocol violation if a buffer
-         *      with an old size is committed.
-         */
-        if (!data->viewport && data->shell_surface_type == WAYLAND_SHELL_SURFACE_TYPE_XDG_TOPLEVEL && data->shell_surface.xdg.surface) {
-            xdg_surface_set_window_geometry(data->shell_surface.xdg.surface, 0, 0, data->current.logical_width, data->current.logical_height);
-        }
-
         if (is_opaque) {
             SetSurfaceOpaqueRegion(data->surface, viewport_width, viewport_height);
         } else {
@@ -1094,8 +1184,22 @@ static void handle_xdg_toplevel_configure(void *data,
         }
     }
 
+    /* Configure sizes are in window geometry space; add the border insets, if any, to get
+     * the surface size. Maximized and fullscreen windows must use the configured size as-is,
+     * so a change in inset applicability requires re-adopting even an unchanged size, and
+     * sizes adopted from the cached window size are converted back to geometry space for
+     * the last_configure store.
+     */
+    const bool insets_apply = wind->enable_insets && !fullscreen && !maximized;
+
     // When resizing, dimensions other than 0 are a maximum.
-    const bool new_configure_size = width != wind->last_configure.width || height != wind->last_configure.height;
+    const bool new_configure_size = width != wind->last_configure.width || height != wind->last_configure.height ||
+                                    insets_apply != wind->last_configure.insets_apply;
+
+    BorderInsets insets = { 0, 0, 0, 0 };
+    if (insets_apply) {
+        GetBorderInsets(window, &insets);
+    }
 
     DetermineResizeAxis(wind, width, height, resizing);
     UpdateWindowFullscreen(window, fullscreen);
@@ -1144,15 +1248,16 @@ static void handle_xdg_toplevel_configure(void *data,
                     wind->requested.pixel_width = width;
                     width = wind->requested.logical_width = PixelToPoint(window, width);
                 }
+                width = SDL_max(width - (insets.left + insets.right), 1);
             } else if (new_configure_size) {
                 /* Don't apply the supplied dimensions if they haven't changed from the last configuration
                  * event, or a newer size set programmatically can be overwritten by old data.
                  */
 
-                wind->requested.logical_width = width;
+                wind->requested.logical_width = width + (insets.left + insets.right);
 
                 if (wind->scale_to_display) {
-                    wind->requested.pixel_width = PointToPixel(window, width);
+                    wind->requested.pixel_width = PointToPixel(window, wind->requested.logical_width);
                 }
             }
             if (!height) {
@@ -1176,14 +1281,15 @@ static void handle_xdg_toplevel_configure(void *data,
                     wind->requested.pixel_height = height;
                     height = wind->requested.logical_height = PixelToPoint(window, height);
                 }
+                height = SDL_max(height - (insets.top + insets.bottom), 1);
             } else if (new_configure_size) {
                 /* Don't apply the supplied dimensions if they haven't changed from the last configuration
                  * event, or a newer size set programmatically can be overwritten by old data.
                  */
-                wind->requested.logical_height = height;
+                wind->requested.logical_height = height + (insets.top + insets.bottom);
 
                 if (wind->scale_to_display) {
-                    wind->requested.pixel_height = PointToPixel(window, height);
+                    wind->requested.pixel_height = PointToPixel(window, wind->requested.logical_height);
                 }
             }
         } else {
@@ -1199,6 +1305,8 @@ static void handle_xdg_toplevel_configure(void *data,
                 width = wind->requested.logical_width = PixelToPoint(window, window->floating.w);
                 height = wind->requested.logical_height = PixelToPoint(window, window->floating.h);
             }
+            width = SDL_max(width - (insets.left + insets.right), 1);
+            height = SDL_max(height - (insets.top + insets.bottom), 1);
         }
 
         /* Notes on the spec and implementations:
@@ -1241,6 +1349,7 @@ static void handle_xdg_toplevel_configure(void *data,
 
     wind->last_configure.width = width;
     wind->last_configure.height = height;
+    wind->last_configure.insets_apply = insets_apply;
     wind->floating = floating;
     wind->suspended = suspended;
     wind->active = active;
@@ -1789,10 +1898,13 @@ static void Wayland_HandlePreferredScaleChanged(SDL_WindowData *window_data, dou
                  * incorrectly change size when moved between displays with differing scale factors.
                  *
                  * Store the last requested logical size as the last configure size, so a configure event
-                 * with the old size will be ignored.
+                 * with the old size will be ignored. Configure sizes are in window geometry space,
+                 * so subtract any border insets.
                  */
-                window_data->last_configure.width = window_data->requested.logical_width;
-                window_data->last_configure.height = window_data->requested.logical_height;
+                BorderInsets insets;
+                GetBorderInsets(window_data->sdlwindow, &insets);
+                window_data->last_configure.width = SDL_max(window_data->requested.logical_width - (insets.left + insets.right), 1);
+                window_data->last_configure.height = SDL_max(window_data->requested.logical_height - (insets.top + insets.bottom), 1);
 
                 window_data->requested.logical_width = PixelToPoint(window_data->sdlwindow, window_data->requested.pixel_width);
                 window_data->requested.logical_height = PixelToPoint(window_data->sdlwindow, window_data->requested.pixel_height);
@@ -2290,7 +2402,9 @@ void Wayland_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
             // Set up the positioner for the popup and configure the constraints
             data->shell_surface.xdg.popup.xdg_positioner = xdg_wm_base_create_positioner(c->shell.xdg);
             xdg_positioner_set_anchor(data->shell_surface.xdg.popup.xdg_positioner, XDG_POSITIONER_ANCHOR_TOP_LEFT);
-            xdg_positioner_set_anchor_rect(data->shell_surface.xdg.popup.xdg_positioner, 0, 0, parent->internal->current.logical_width, parent->internal->current.logical_height);
+            SDL_Rect parent_geometry;
+            GetWindowGeometry(parent->internal, &parent_geometry);
+            xdg_positioner_set_anchor_rect(data->shell_surface.xdg.popup.xdg_positioner, 0, 0, parent_geometry.w, parent_geometry.h);
 
             const Uint32 constraint = window->constrain_popup ? (XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X | XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y) : XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE;
             xdg_positioner_set_constraint_adjustment(data->shell_surface.xdg.popup.xdg_positioner, constraint);
@@ -2591,6 +2705,7 @@ void Wayland_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
     Wayland_DestroyToplevelSession(wind);
 
     SDL_zero(wind->shell_surface);
+    SDL_zero(wind->explicit_geometry);
     wind->show_hide_sync_required = true;
     struct wl_callback *cb = wl_display_sync(_this->internal->display);
     wl_callback_add_listener(cb, &show_hide_sync_listener, (void *)((uintptr_t)window->id));
@@ -3053,6 +3168,7 @@ bool Wayland_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
     }
 
     window->internal = data;
+    data->enable_insets = SDL_GetBooleanProperty(create_props, SDL_PROP_WINDOW_CREATE_WAYLAND_ENABLE_INSETS_BOOLEAN, false);
 
     if (window->x == SDL_WINDOWPOS_UNDEFINED) {
         window->x = 0;
@@ -3296,21 +3412,41 @@ void Wayland_SetWindowSize(SDL_VideoDevice *_this, SDL_Window *window)
      */
     FlushPendingEvents(window);
 
-    const bool resizable_state = !(window->flags & (SDL_WINDOW_MAXIMIZED || SDL_WINDOW_FULLSCREEN));
+    const bool maximized = (window->flags & SDL_WINDOW_MAXIMIZED) != 0;
+    const bool resizable_state = !(window->flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN));
 
     /* Maximized and fullscreen windows don't get resized, and the new size is ignored
      * if this is just to recalculate the min/max or aspect limits on a tiled window.
+     *
+     * Some compositors will mark tiled windows as maximized. In these cases, the content
+     * size is recalculated, but window size itself is left alone, as the spec states that
+     * the configure size of a maximized window must be obeyed.
      */
     if (resizable_state || (window->tiled && !wind->limits_changed) ||
         wind->shell_surface_type == WAYLAND_SHELL_SURFACE_TYPE_CUSTOM) {
-        if (!wind->scale_to_display) {
-            wind->requested.logical_width = window->pending.w;
-            wind->requested.logical_height = window->pending.h;
-        } else {
-            wind->requested.logical_width = PixelToPoint(window, window->pending.w);
-            wind->requested.logical_height = PixelToPoint(window, window->pending.h);
-            wind->requested.pixel_width = window->pending.w;
-            wind->requested.pixel_height = window->pending.h;
+
+        // Don't change the window size if maximized and tiled.
+        if (!maximized) {
+            if (!wind->scale_to_display) {
+                wind->requested.logical_width = window->pending.w;
+                wind->requested.logical_height = window->pending.h;
+            } else {
+                wind->requested.logical_width = PixelToPoint(window, window->pending.w);
+                wind->requested.logical_height = PixelToPoint(window, window->pending.h);
+                wind->requested.pixel_width = window->pending.w;
+                wind->requested.pixel_height = window->pending.h;
+            }
+        }
+
+        /* If a non-resizable window somehow wound up in the tiled state, store the new
+         * size in the floating parameters so the size will be preserved for future
+         * configure events.
+         *
+         * This shouldn't happen, but apparently it can on at least one compositor...
+         */
+        if (window->tiled && !(window->flags & SDL_WINDOW_RESIZABLE)) {
+            window->floating.w = window->pending.w;
+            window->floating.h = window->pending.h;
         }
     } else {
         // Can't resize the window.
@@ -3701,6 +3837,8 @@ void Wayland_DestroyWindow(SDL_VideoDevice *_this, SDL_Window *window)
          * no internal structures are left pointing to the destroyed window.
          */
         if (wind->show_hide_sync_required) {
+            /* Make sure hit test isn't executed during roundtrip */
+            window->hit_test = NULL;
             WAYLAND_wl_display_roundtrip(data->display);
         }
 

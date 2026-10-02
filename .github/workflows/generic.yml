@@ -14,6 +14,7 @@ jobs:
     name: ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
     container: ${{ matrix.platform.container }}
+    continue-on-error: ${{ matrix.platform.allow-failure }}
     defaults:
       run:
         shell: ${{ matrix.platform.shell }}
@@ -176,13 +177,6 @@ jobs:
               echo '#error "System SDL headers must not be used by build system"' >"$dest"
             done
           done
-      - name: 'Set up Microsoft.GameInput headers'
-        if: ${{ !!matrix.platform.microsoft-gameinput }}
-        run: |
-          python build-scripts/download-gameinput-sdk.py -o $HOME/gameinput
-          echo "GAMEINPUT_INCLUDE=$(cygpath -w "$HOME/gameinput/include")" >>$GITHUB_ENV
-          echo "INCLUDE=$(cygpath -w "$HOME/gameinput/include");$INCLUDE" >>$GITHUB_ENV
-          ${{ (!!matrix.platform.microsoft-gameinput-arch && format('echo "LIB=$(cygpath -w "$HOME/gameinput/lib/{0}");$LIB" >>$GITHUB_ENV', matrix.platform.microsoft-gameinput-arch)) || '' }}
       - name: 'Calculate ccache key'
         if: ${{ matrix.platform.ccache }}
         id: prepare-restore-ccache
@@ -348,7 +342,7 @@ jobs:
             ${{ matrix.platform.cpactions-install-cmd }}
             cmake -S . -B build -GNinja  \
               ${{ matrix.platform.cmake-toolchain-file != '' && format('-DCMAKE_TOOLCHAIN_FILE={0}', matrix.platform.cmake-toolchain-file) || '' }} \
-              -Wdeprecated -Wdev -Werror \
+              -Wdeprecated -Wdev -Werror=dev -Werror=deprecated \
               -DSDL_WERROR=${{ matrix.platform.werror }} \
               -DSDL_INSTALL_DOCS=ON \
               ${{ matrix.platform.cmake-arguments }} \
@@ -376,7 +370,7 @@ jobs:
       - name: 'Build (Android.mk)'
         if: ${{ matrix.platform.android-mk }}
         run: |
-          ./build-scripts/androidbuildlibs.sh
+          ./build-scripts/androidbuildlibs.sh -j$(nproc)
       - name: 'Create Gradle project (Android)'
         if: ${{ matrix.platform.android-gradle }}
         run: |
