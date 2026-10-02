@@ -38,16 +38,13 @@
 
 bool Android_GLES_MakeCurrent(SDL_VideoDevice *_this, SDL_Window *window, SDL_GLContext context)
 {
-    if(!window) {
-        return false;
-    }
     // In some *rare* cases the given window might be offscreen one. In such cases we'll swap the window
     // so we don't render onto pbuffer
-    if(Android_Window && Android_Window != window && !(Android_Window->flags & SDL_WINDOW_HIDDEN)) {
+    if(window && Android_Window && Android_Window != window && !(Android_Window->flags & SDL_WINDOW_HIDDEN)) {
         SDL_Log("Swapped current android window %s with another window %s", Android_Window->title, window->title);
         Android_SwapWindow(_this, window);
     }
-    if (context) {
+    if (context && window) {
         return SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, context);
     } else {
         return SDL_EGL_MakeCurrent(_this, NULL, NULL);
