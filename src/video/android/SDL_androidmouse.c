@@ -176,6 +176,7 @@ void Android_InitMouse(void)
     mouse->CreateSystemCursor = Android_CreateSystemCursor;
     mouse->ShowCursor = Android_ShowCursor;
     mouse->FreeCursor = Android_FreeCursor;
+    mouse->WarpMouse = Android_WarpMouse;
     mouse->SetRelativeMouseMode = Android_SetRelativeMouseMode;
 
     SDL_SetDefaultCursor(Android_CreateDefaultCursor());
@@ -257,6 +258,11 @@ void Android_OnMouseButton(SDL_Window* window, int button, int action, float x, 
     }
     SDL_SendMouseMotion(0, window, SDL_DEFAULT_MOUSE_ID, relative, x, y);
     SDL_SendMouseButton(0, window, SDL_DEFAULT_MOUSE_ID, sdlButton, action == 1);
+}
+
+bool Android_WarpMouse(SDL_Window* window, float x, float y) {
+    Android_JNI_WarpMouse(x, y);
+    return true;
 }
 
 #endif // SDL_VIDEO_DRIVER_ANDROID

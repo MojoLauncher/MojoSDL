@@ -112,6 +112,7 @@ static jmethodID midClipboardHasText;
 static jmethodID midClipboardSetText;
 static jmethodID midCreateCustomCursor;
 static jmethodID midDestroyCustomCursor;
+static jmethodID midWarpMouse;
 static jmethodID midGetNativeSurface;
 static jmethodID midInitTouch;
 static jmethodID midMinimizeWindow;
@@ -720,6 +721,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
     midMinimizeWindow = (*env)->GetStaticMethodID(env, mActivityClass, "minimizeWindow", "()V");
     midSetActivityTitle = (*env)->GetStaticMethodID(env, mActivityClass, "setActivityTitle", "(Ljava/lang/String;)Z");
     midSetCustomCursor = (*env)->GetStaticMethodID(env, mActivityClass, "setCustomCursor", "(I)Z");
+    midWarpMouse = (*env)->GetStaticMethodID(env, mActivityClass, "warpMouse", "(FF)Z");
     midSetOrientation = (*env)->GetStaticMethodID(env, mActivityClass, "setOrientation", "(IIZLjava/lang/String;)V");
     midSetRelativeMouseEnabled = (*env)->GetStaticMethodID(env, mActivityClass, "setRelativeMouseEnabled", "(Z)Z");
     midSetSystemCursor = (*env)->GetStaticMethodID(env, mActivityClass, "setSystemCursor", "(I)Z");
@@ -738,6 +740,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
         !midMinimizeWindow ||
         !midSetActivityTitle ||
         !midSetCustomCursor ||
+        !midWarpMouse ||
         !midSetOrientation ||
         !midSetRelativeMouseEnabled ||
         !midSetSystemCursor ||
@@ -3044,6 +3047,12 @@ bool Android_JNI_SetRelativeMouseEnabled(bool enabled)
 {
     JNIEnv *env = Android_JNI_GetEnv();
     return (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetRelativeMouseEnabled, (enabled == 1));
+}
+
+bool Android_JNI_WarpMouse(float x, float y)
+{
+    JNIEnv *env = Android_JNI_GetEnv();
+    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midWarpMouse, x, y);
 }
 
 // MessageBox
