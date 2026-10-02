@@ -293,11 +293,11 @@ void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
         Android_Window = window;
 
 #ifdef SDL_VIDEO_OPENGL_EGL
-    _this->egl_data->eglMakeCurrent(_this->egl_data->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    if (data->egl_surface != EGL_NO_SURFACE) {
-        SDL_EGL_DestroySurface(_this, data->egl_surface);
-    }
     if(window->flags & SDL_WINDOW_OPENGL) {
+        _this->egl_data->eglMakeCurrent(_this->egl_data->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (data->egl_surface != EGL_NO_SURFACE) {
+            SDL_EGL_DestroySurface(_this, data->egl_surface);
+        }
         data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
         if(data->egl_surface == EGL_NO_SURFACE) {
             // This is 99% caused by incorrect usage: ShowWindow should be called only if the current window is hidden
