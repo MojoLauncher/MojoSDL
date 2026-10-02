@@ -41,6 +41,7 @@ public class SDLActivity {
     private static GrabListener grabListener;
     private static Map<Integer, SDLCursor> customCursors = new HashMap<>();
     private static SDLCursor.CursorChangeCallback cursorCallback;
+    private static SDLCursor.CursorWarpCallback cursorWarpCallback;
     private static int lastCursorId = 0;
     private static Runnable initCallback;
 
@@ -57,6 +58,11 @@ public class SDLActivity {
     public static void setCursorCallback(SDLCursor.CursorChangeCallback callback){
         cursorCallback = callback;
     }
+
+    public static void setCursorWarpCallback(SDLCursor.CursorWarpCallback cursorWarpCallback) {
+        SDLActivity.cursorWarpCallback = cursorWarpCallback;
+    }
+
     public static void setGrabListener(GrabListener grabListener){
         SDLActivity.grabListener = grabListener;
     }
@@ -149,6 +155,11 @@ public class SDLActivity {
 
     public static boolean setRelativeMouseEnabled(boolean enabled) {
         grabListener.onGrabState(enabled);
+        return true;
+    }
+
+    public static boolean warpMouse(float x, float y) {
+        if(cursorWarpCallback != null) cursorWarpCallback.onCursorWarp(x, y);
         return true;
     }
 

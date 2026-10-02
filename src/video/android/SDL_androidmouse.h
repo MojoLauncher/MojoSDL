@@ -27,6 +27,7 @@
 extern void Android_InitMouse(void);
 extern void Android_OnMouse(SDL_Window *window, int button, int action, float x, float y, bool relative);
 extern void Android_OnMouseButton(SDL_Window* window, int button, int action, float x, float y, bool relative);
+extern bool Android_WarpMouse(SDL_Window *window, float x, float y);
 extern void Android_QuitMouse(void);
 
 #endif // SDL_androidmouse_h_

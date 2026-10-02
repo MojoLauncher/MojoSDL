@@ -102,6 +102,8 @@ bool Android_JNI_SetSystemCursor(int cursorID);
 bool Android_JNI_SupportsRelativeMouse(void);
 bool Android_JNI_SetRelativeMouseEnabled(bool enabled);
 
+bool Android_JNI_WarpMouse(float x, float y);
+
 // MessageBox
 bool Android_JNI_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *buttonID);
 #endif // !SDL_VIDEO_DISABLED
