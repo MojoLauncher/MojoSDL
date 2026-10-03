@@ -1525,8 +1525,11 @@ void SDL_PumpEventMaintenance(void)
 // Run the system dependent event loops
 static void SDL_PumpEventsInternal(bool push_sentinel)
 {
-    // This should only be called on the main thread, check in debug builds
-    SDL_assert(SDL_IsMainThread());
+    // HACK: route PumpEvents to main thread if not running there
+    if(!SDL_IsMainThread()) {
+        SDL_RunOnMainThread((SDL_MainThreadCallback) SDL_PumpEventsInternal, (void*)push_sentinel, true);
+        return;
+    }
 
     // Free any temporary memory from old events
     SDL_FreeTemporaryMemory();
@@ -1568,6 +1571,7 @@ static void SDL_PumpEventsInternal(bool push_sentinel)
         SDL_PushEvent(&sentinel);
     }
 }
+
 
 void SDL_PumpEvents(void)
 {
