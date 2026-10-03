@@ -141,6 +141,15 @@ bool Android_Vulkan_CreateSurface(SDL_VideoDevice *_this,
                             " extension is not enabled in the Vulkan instance.");
     }
 
+    if (!windowData->native_window) {
+        // Try to fetch ANativeWindow first
+        windowData->native_window = Android_JNI_WaitForNativeWindow();
+        if(!windowData->native_window) {
+            // passing a NULL window violates Vulkan spec
+            return SDL_SetError("Android native window is not available for surface creation, usually because of backgrounding");
+        }
+    }
+
     SDL_zero(createInfo);
     createInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
     createInfo.pNext = NULL;
