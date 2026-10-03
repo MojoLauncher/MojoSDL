@@ -142,8 +142,12 @@ bool Android_Vulkan_CreateSurface(SDL_VideoDevice *_this,
     }
 
     if (!windowData->native_window) {
-        // passing a NULL window violates Vulkan spec
-        return SDL_SetError("Android native window is not available for surface creation, usually because of backgrounding");
+        // Try to fetch ANativeWindow first
+        windowData->native_window = Android_JNI_WaitForNativeWindow();
+        if(!windowData->native_window) {
+            // passing a NULL window violates Vulkan spec
+            return SDL_SetError("Android native window is not available for surface creation, usually because of backgrounding");
+        }
     }
 
     SDL_zero(createInfo);
