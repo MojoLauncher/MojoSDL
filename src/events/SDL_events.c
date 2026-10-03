@@ -1856,6 +1856,7 @@ bool SDL_PushEvent(SDL_Event *event)
 
 void SDL_SetEventFilter(SDL_EventFilter filter, void *userdata)
 {
+    /*
     SDL_EventEntry *event, *next;
     SDL_LockMutex(SDL_event_lock);
     {
@@ -1877,6 +1878,8 @@ void SDL_SetEventFilter(SDL_EventFilter filter, void *userdata)
         }
     }
     SDL_UnlockMutex(SDL_event_lock);
+     */
+    // TODO: HACK: Ignore event filters till Controlify upstream resolves issues when using shared with the game SDL
 }
 
 bool SDL_GetEventFilter(SDL_EventFilter *filter, void **userdata)
