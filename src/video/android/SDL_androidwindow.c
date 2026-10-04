@@ -278,50 +278,6 @@ void Android_ManageSurface(SDL_VideoDevice *_this, SDL_Window *window) {
 #endif
 }
 
-void Android_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
-{
-    if(!window || !Android_Window) {
-        return; // Yes, this happens. Sometimes
-    }
-    SDL_Log("Show window: %s", window->title);
-    SDL_WindowData *data = window->internal;
-    if(!data) {
-        return;
-    }
-    ANativeWindow* anw = Android_JNI_WaitForNativeWindow();
-    if(!anw){
-        SDL_Log("Failed to fetch ANativeWindow!");
-        return;
-    }
-    data->native_window = anw;
-    Android_Window->internal->native_window = NULL;
-#ifdef SDL_VIDEO_OPENGL_EGL
-    _this->egl_data->eglMakeCurrent(_this->egl_data->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    if (Android_Window->internal->egl_surface != EGL_NO_SURFACE) {
-        SDL_EGL_DestroySurface(_this, Android_Window->internal->egl_surface);
-    }
-    if (data->egl_surface != EGL_NO_SURFACE) {
-        SDL_EGL_DestroySurface(_this, data->egl_surface);
-    }
-    if(Android_Window->flags & SDL_WINDOW_OPENGL) {
-        Android_Window->internal->egl_surface = SDL_EGL_CreateOffscreenSurface(_this,
-                                                                               Android_SurfaceWidth,
-                                                                               Android_SurfaceHeight);
-        Android_Window->internal->surface_changed = true;
-    }
-    if(window->flags & SDL_WINDOW_OPENGL) {
-        data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
-        if(data->egl_surface == EGL_NO_SURFACE) {
-            // This is purposely left unhandled so the app can "safely" crash with EGL_BAD_SURFACE
-            // or not crash and fill logcat with spam from the system EGL :trolley:
-            SDL_Log("Failed to create EGLSurface on a swapped window!");
-        }
-        data->surface_changed = true;
-    }
-#endif
-    Android_Window = window;
-}
-
 void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
 {
     if(!window) {
