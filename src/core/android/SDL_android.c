@@ -1253,10 +1253,15 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
 {
     SDL_LockMutex(Android_ActivityMutex);
 
+    ANativeWindow *window = Android_JNI_GetNativeWindow();
+    if(window) {
+        SDL_SetAtomicInt(&Android_WindowAvailable, true);
+    }
+
     if (Android_Window) {
         SDL_WindowData *data = Android_Window->internal;
 
-        data->native_window = Android_JNI_GetNativeWindow();
+        data->native_window = window;
         SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, data->native_window);
         if (data->native_window == NULL) {
             SDL_SetError("Could not fetch native window from UI thread");
@@ -1265,7 +1270,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
         SDL_SetAtomicInt(&data->surface_changed, true);
     }
 
-    SDL_SetAtomicInt(&Android_WindowAvailable, true);
+
     SDL_BroadcastCondition(Android_WindowCondition);
 
     SDL_UnlockMutex(Android_ActivityMutex);
@@ -1293,6 +1298,8 @@ retry:
 
     SDL_LockMutex(Android_ActivityMutex);
 
+    SDL_SetAtomicInt(&Android_WindowAvailable, false);
+
     if (Android_Window) {
         SDL_WindowData *data = Android_Window->internal;
 
@@ -1307,8 +1314,6 @@ retry:
                 goto retry;
             }
         }
-
-        SDL_SetAtomicInt(&Android_WindowAvailable, false);
 
         // Next SwapBuffers call will automatically convert EGLSurface to offscreen one
         SDL_SetAtomicInt(&data->surface_changed, true);
@@ -2934,7 +2939,7 @@ ANativeWindow *Android_JNI_WaitForNativeWindow(void)
     jobject s;
 
     if(!SDL_GetAtomicInt(&Android_WindowAvailable)) {
-        SDL_Log("ANativeWindow is not available, waiting till it arrives...");
+        SDL_Log("ANativeWindow is not yet available, waiting till it arrives...");
         SDL_LockMutex(Android_LifecycleMutex);
         SDL_WaitCondition(Android_WindowCondition, Android_LifecycleMutex);
         SDL_UnlockMutex(Android_LifecycleMutex);
