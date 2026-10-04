@@ -340,16 +340,18 @@ static bool SDL_EGL_LoadLibraryInternal(SDL_VideoDevice *_this, const char *egl_
 {
 
     SDL_SharedObject *egl_dll_handle = NULL;
+#if !defined(SDL_VIDEO_STATIC_ANGLE) && !defined(SDL_VIDEO_DRIVER_VITA)
+    SDL_SharedObject *opengl_dll_handle = NULL;
+#endif
     // EGL library loading
 #ifdef SDL_VIDEO_DRIVER_ANDROID
     egl_dll_handle = mojoexec_acq_egl_handle();
     if (egl_dll_handle) {
+        opengl_dll_handle = egl_dll_handle; // In mojoexec case egl handle = opengl handle
         SDL_Log("acquired EGL handle from mojoexec = %p\n", egl_dll_handle);
     }
 #endif
-#if !defined(SDL_VIDEO_STATIC_ANGLE) && !defined(SDL_VIDEO_DRIVER_VITA)
-    SDL_SharedObject *opengl_dll_handle = NULL;
-#endif
+
     const char *path = NULL;
 #if defined(SDL_VIDEO_DRIVER_WINDOWS)
     const char *d3dcompiler;
