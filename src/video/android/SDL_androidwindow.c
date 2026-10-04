@@ -90,6 +90,8 @@ bool Android_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
         goto endfunction;
     }
 
+    ANativeWindow *anw = Android_JNI_GetNativeWindow();
+
     SDL_WindowData *data;
 
     // Set orientation
@@ -111,21 +113,17 @@ bool Android_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
         goto endfunction;
     }
 
-    data->native_window = Android_JNI_GetNativeWindow();
-    if (!data->native_window) {
-        SDL_free(data);
-        result = SDL_SetError("Could not fetch native window");
-        goto endfunction;
-    }
+    data->native_window = anw;
 
-    SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_PLATFORM);
+    // CreateOffscreenWindow() is for additional windows, here we still create it as the main one
+    SDL_SetAtomicInt(&data->surface_mode, anw ? SDL_ANDROID_WINDOW_PLATFORM : SDL_ANDROID_WINDOW_OFFSCREEN);
 
     SDL_SetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, data->native_window);
 
     /* Do not create EGLSurface for Vulkan window since it will then make the window
        incompatible with vkCreateAndroidSurfaceKHR */
 #ifdef SDL_VIDEO_OPENGL_EGL
-    if (window->flags & SDL_WINDOW_OPENGL) {
+    if (window->flags & SDL_WINDOW_OPENGL && anw) {
         data->egl_surface = SDL_EGL_CreateSurface(_this, window, (NativeWindowType)data->native_window);
 
         if (data->egl_surface == EGL_NO_SURFACE) {
@@ -261,7 +259,7 @@ void Android_ManageSurface(SDL_VideoDevice *_this, SDL_Window *window) {
         case SDL_ANDROID_WINDOW_PLATFORM:
             // For platform surface we need to fetch an ANativeWindow
             // The method below will block this thread till the ANativeWindow arrives
-            data->native_window = Android_JNI_WaitForNativeWindow();
+            data->native_window = Android_JNI_GetNativeWindow();
             if(!data->native_window) {
                 SDL_Log("Unable to fetch ANativeWindow, switching to offscreen");
                 SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_OFFSCREEN);
