@@ -44,8 +44,8 @@ struct SDL_WindowData
     EGLContext egl_context; // We use this to preserve the context when losing focus
     int has_swap_interval;  // Save/Restore the swap interval / vsync
     int swap_interval;
-    bool surface_changed; // Mark this to rebind surface on the current GL context thread
-    bool offscreen_surface; // Should we render into a pbuffer
+    SDL_AtomicInt surface_changed; // Mark this to rebind surface on the current GL context thread
+    SDL_AtomicInt surface_mode; // pbuffer or platform
 #endif
     bool backup_done;
     ANativeWindow *native_window;

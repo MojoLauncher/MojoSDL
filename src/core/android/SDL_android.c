@@ -1261,8 +1261,8 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
         if (data->native_window == NULL) {
             SDL_SetError("Could not fetch native window from UI thread");
         }
-        data->offscreen_surface = false;
-        data->surface_changed = true;
+        SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_PLATFORM);
+        SDL_SetAtomicInt(&data->surface_changed, true);
     }
 
     SDL_SetAtomicInt(&Android_WindowAvailable, true);
@@ -1311,8 +1311,8 @@ retry:
         SDL_SetAtomicInt(&Android_WindowAvailable, false);
 
         // Next SwapBuffers call will automatically convert EGLSurface to offscreen one
-        data->surface_changed = true;
-        data->offscreen_surface = true;
+        SDL_SetAtomicInt(&data->surface_changed, true);
+        SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_OFFSCREEN);
 
         if (data->native_window) {
             SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, NULL);
