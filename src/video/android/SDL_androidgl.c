@@ -75,10 +75,11 @@ bool Android_GLES_SwapWindow(SDL_VideoDevice *_this, SDL_Window *window)
     _this->egl_data->eglWaitGL();*/
 
     // EGLSurface might have changed at this point, so it needs rebinding
-    if(window->internal->surface_changed){
+    SDL_AtomicInt *surf_state = &window->internal->surface_changed;
+    if(SDL_GetAtomicInt(surf_state)){
         // Method below will recreate needed surface automatically
         Android_ManageSurface(_this, window);
-        window->internal->surface_changed = false;
+        SDL_SetAtomicInt(surf_state, false);
     }
 
     result = SDL_EGL_SwapBuffers(_this, window->internal->egl_surface);

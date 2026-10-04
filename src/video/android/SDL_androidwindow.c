@@ -49,7 +49,7 @@ static bool Android_CreateOffscreenWindow(SDL_VideoDevice *_this, SDL_Window *wi
     }
     // Only primary window has ANativeWindow
     data->native_window = NULL;
-    data->offscreen_surface = true;
+    SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_PLATFORM);
 
 #ifdef SDL_VIDEO_OPENGL_EGL
     if (window->flags & SDL_WINDOW_OPENGL) {
@@ -117,7 +117,8 @@ bool Android_CreateWindow(SDL_VideoDevice *_this, SDL_Window *window, SDL_Proper
         result = SDL_SetError("Could not fetch native window");
         goto endfunction;
     }
-    data->offscreen_surface = false;
+
+    SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_PLATFORM);
 
     SDL_SetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, data->native_window);
 
@@ -247,33 +248,34 @@ void Android_ManageSurface(SDL_VideoDevice *_this, SDL_Window *window) {
     }
     // Second: we decide, what surface we should create
     create_surface:
-    if(data->offscreen_surface) {
-        data->egl_surface = SDL_EGL_CreateOffscreenSurface(_this, Android_SurfaceWidth, Android_SurfaceHeight);
-        if(!data->egl_surface) {
-            SDL_Log("Unable to create an offscreen EGL surface: %s", SDL_GetError());
-            return;
-        }
-        SDL_Log("Window %s is now offscreen!", window->title);
-    }
-    else {
-        // For platform surface we need to fetch an ANativeWindow
-        // The method below will block this thread till the ANativeWindow arrives
-        ANativeWindow *anw = Android_JNI_WaitForNativeWindow();
-        if(!anw) {
-            SDL_Log("Unable to fetch ANativeWindow, switching to offscreen");
-            data->offscreen_surface = true;
-            goto create_surface;
-        }
-        data->native_window = anw;
-        SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, anw);
-        data->egl_surface = SDL_EGL_CreateSurface(_this, window, anw);
-        if(!data->egl_surface) {
-            // Read the comment above
-            SDL_Log("Unable to create a platform EGL surface: %s. Switching to offscreen", SDL_GetError());
-            data->offscreen_surface = true;
-            goto create_surface;
-        }
-        SDL_Log("Window %s is now being rendered on-screen! Contact developers if it isn't for whatever reasons", window->title);
+    switch(SDL_GetAtomicInt(&data->surface_mode)) {
+        case SDL_ANDROID_WINDOW_OFFSCREEN:
+            data->egl_surface = SDL_EGL_CreateOffscreenSurface(_this, Android_SurfaceWidth, Android_SurfaceHeight);
+            if(!data->egl_surface) {
+                // There's nothing we can do if even offscreen surface has failed
+                SDL_Log("Unable to create an offscreen EGL surface: %s", SDL_GetError());
+                return;
+            }
+            SDL_Log("Window %s is now offscreen!", window->title);
+            break;
+        case SDL_ANDROID_WINDOW_PLATFORM:
+            // For platform surface we need to fetch an ANativeWindow
+            // The method below will block this thread till the ANativeWindow arrives
+            data->native_window = Android_JNI_WaitForNativeWindow();
+            if(!data->native_window) {
+                SDL_Log("Unable to fetch ANativeWindow, switching to offscreen");
+                SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_OFFSCREEN);
+                goto create_surface;
+            }
+            SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, data->native_window);
+            data->egl_surface = SDL_EGL_CreateSurface(_this, window, data->native_window);
+            if(!data->egl_surface) {
+                // Read the comment above
+                SDL_Log("Unable to create a platform EGL surface: %s. Switching to offscreen", SDL_GetError());
+                SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_OFFSCREEN);
+                goto create_surface;
+            }
+            SDL_Log("Window %s is now being rendered on-screen! Contact developers if it isn't for whatever reasons", window->title);
     }
     SDL_EGL_MakeCurrent(_this, data->egl_surface, SDL_GL_GetCurrentContext());
 #endif
@@ -294,13 +296,9 @@ void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
 
     Android_Window = window;
 
-    if(!data->offscreen_surface) {
-        return;
-    }
-
     // See Android_GLES_SwapWindow(). This will automatically fetch ANativeWindow and create a platform surface
-    data->offscreen_surface = false;
-    data->surface_changed = true;
+    SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_PLATFORM);
+    SDL_SetAtomicInt(&data->surface_changed, true);
 }
 
 void Android_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
@@ -312,12 +310,9 @@ void Android_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
     if(!data) {
         return;
     }
-    if(data->offscreen_surface) {
-        return;
-    }
     data->native_window = NULL;
-    data->offscreen_surface = true;
-    data->surface_changed = true;
+    SDL_SetAtomicInt(&data->surface_mode, SDL_ANDROID_WINDOW_OFFSCREEN);
+    SDL_SetAtomicInt(&data->surface_changed, true);
 }
 
 static void Android_DestroyOffscreenWindow(SDL_VideoDevice *_this, SDL_Window *window)

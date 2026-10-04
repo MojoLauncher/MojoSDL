@@ -65,6 +65,9 @@ void Android_SetAllowRecreateActivity(bool enabled);
 #include <EGL/eglplatform.h>
 #include <android/native_window_jni.h>
 
+#define SDL_ANDROID_WINDOW_OFFSCREEN 1
+#define SDL_ANDROID_WINDOW_PLATFORM 0
+
 // Interface from the SDL library into the Android Java activity
 extern void Android_JNI_SetActivityTitle(const char *title);
 extern void Android_JNI_SetWindowStyle(bool fullscreen);
