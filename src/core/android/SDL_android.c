@@ -175,6 +175,7 @@ static SDL_Semaphore *Android_LifecycleEventSem = NULL;
 static SDL_AndroidLifecycleEvent Android_LifecycleEvents[SDL_NUM_ANDROID_LIFECYCLE_EVENTS];
 static int Android_NumLifecycleEvents;
 static SDL_Condition *Android_WindowCondition = NULL;
+static SDL_AtomicInt Android_WindowAvailable;
 
 // Java class SDLActivity
 JNIEXPORT jstring JNICALL SDL_JAVA_INTERFACE(nativeGetVersion)(
@@ -616,6 +617,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
 
     // Setup window wait condition
     Android_WindowCondition = SDL_CreateCondition();
+    SDL_SetAtomicInt(&Android_WindowAvailable, false);
 
     /*
      * Create mThreadKey so we can keep track of the JNIEnv assigned to each thread
@@ -1263,6 +1265,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceCreated)(JNIEnv *env, j
         data->surface_changed = true;
     }
 
+    SDL_SetAtomicInt(&Android_WindowAvailable, true);
     SDL_BroadcastCondition(Android_WindowCondition);
 
     SDL_UnlockMutex(Android_ActivityMutex);
@@ -1276,7 +1279,6 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeSurfaceChanged)(JNIEnv *env, j
     if (Android_Window) {
         Android_RestoreScreenKeyboard(SDL_GetVideoDevice(), Android_Window);
     }
-
     SDL_BroadcastCondition(Android_WindowCondition);
 
     SDL_UnlockMutex(Android_ActivityMutex);
@@ -1305,6 +1307,8 @@ retry:
                 goto retry;
             }
         }
+
+        SDL_SetAtomicInt(&Android_WindowAvailable, false);
 
         // Next SwapBuffers call will automatically convert EGLSurface to offscreen one
         data->surface_changed = true;
@@ -2929,26 +2933,25 @@ ANativeWindow *Android_JNI_WaitForNativeWindow(void)
     ANativeWindow *anw = NULL;
     jobject s;
 
-    do {
-        JNIEnv *env = Android_JNI_GetEnv();
-        s = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetNativeSurface);
-        if(s) {
-            anw = ANativeWindow_fromSurface(env, s);
-            if(anw) {
-                (*env)->DeleteLocalRef(env, s);
-                SDL_Log("Native window fetched : %p", anw);
-            }
+    if(!SDL_GetAtomicInt(&Android_WindowAvailable)) {
+        SDL_Log("ANativeWindow is not available, waiting till it arrives...");
+        SDL_LockMutex(Android_LifecycleMutex);
+        SDL_WaitCondition(Android_WindowCondition, Android_LifecycleMutex);
+        SDL_UnlockMutex(Android_LifecycleMutex);
+    }
+
+    JNIEnv *env = Android_JNI_GetEnv();
+    s = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetNativeSurface);
+    if(s) {
+        anw = ANativeWindow_fromSurface(env, s);
+        if (anw) {
+            (*env)->DeleteLocalRef(env, s);
+            SDL_Log("Native window fetched : %p", anw);
         }
-        if(!s || !anw) {
-            SDL_Log("ANativeWindow is not available, waiting till it arrives...");
-            SDL_LockMutex(Android_LifecycleMutex);
-            SDL_WaitConditionTimeout(Android_WindowCondition, Android_LifecycleMutex, 2000);
-            SDL_UnlockMutex(Android_LifecycleMutex);
-            if(!anw) {
-                SDL_Log("Did not receive ANativeWindow, trying again...");
-            }
-        }
-    } while(!anw);
+    }
+    if(!anw) {
+        SDL_Log("WTF??? Surface was supposed to fetch normally, but it's NULL");
+    }
     return anw;
 }
 
