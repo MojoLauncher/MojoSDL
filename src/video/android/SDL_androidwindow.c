@@ -327,21 +327,19 @@ void Android_ShowWindow(SDL_VideoDevice *_this, SDL_Window *window)
     if(!window) {
         return; // Yes, this happens. Sometimes
     }
-    SDL_Log("Show window: %s", window->title);
     SDL_WindowData *data = window->internal;
     if(!data) {
-        return;
-    }
-
-    if(!data->offscreen_surface) {
         return;
     }
 
     SDL_SetMouseFocus(window);
     SDL_SetKeyboardFocus(window);
 
-    if(!Android_Window)
-        Android_Window = window;
+    Android_Window = window;
+
+    if(!data->offscreen_surface) {
+        return;
+    }
 
     // See Android_GLES_SwapWindow(). This will automatically fetch ANativeWindow and create a platform surface
     data->offscreen_surface = false;
@@ -353,7 +351,6 @@ void Android_HideWindow(SDL_VideoDevice *_this, SDL_Window *window)
     if(!window) {
         return;
     }
-    SDL_Log("Hide window: %s", window->title);
     SDL_WindowData *data = window->internal;
     if(!data) {
         return;
