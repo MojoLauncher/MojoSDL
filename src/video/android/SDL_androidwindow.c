@@ -246,6 +246,7 @@ void Android_ManageSurface(SDL_VideoDevice *_this, SDL_Window *window) {
         SDL_EGL_DestroySurface(_this, data->egl_surface);
     }
     // Second: we decide, what surface we should create
+    create_surface:
     if(data->offscreen_surface) {
         data->egl_surface = SDL_EGL_CreateOffscreenSurface(_this, Android_SurfaceWidth, Android_SurfaceHeight);
         if(!data->egl_surface) {
@@ -259,18 +260,18 @@ void Android_ManageSurface(SDL_VideoDevice *_this, SDL_Window *window) {
         // The method below will block this thread till the ANativeWindow arrives
         ANativeWindow *anw = Android_JNI_WaitForNativeWindow();
         if(!anw) {
-            // In theory, we can instead route it through an offscreen surface
-            // However, I think it'd be better for the game to crash instead of silently creating the offscreen surface
-            SDL_Log("Unable to fetch ANativeWindow, cannot continue");
-            return;
+            SDL_Log("Unable to fetch ANativeWindow, switching to offscreen");
+            data->offscreen_surface = true;
+            goto create_surface;
         }
         data->native_window = anw;
         SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, anw);
         data->egl_surface = SDL_EGL_CreateSurface(_this, window, anw);
         if(!data->egl_surface) {
             // Read the comment above
-            SDL_Log("Unable to create a platform EGL surface: %s", SDL_GetError());
-            return;
+            SDL_Log("Unable to create a platform EGL surface: %s. Switching to offscreen", SDL_GetError());
+            data->offscreen_surface = true;
+            goto create_surface;
         }
         SDL_Log("Window %s is now being rendered on-screen! Contact developers if it isn't for whatever reasons", window->title);
     }
