@@ -49,8 +49,8 @@ bool Android_Vulkan_LoadLibrary(SDL_VideoDevice *_this, const char *path)
         return SDL_SetError("Vulkan already loaded");
     }
 
-    _this->vulkan_config.loader_handle = mojoexec_acq_vulkan_handle();
-    SDL_Log("acquired vulkan handle from mojoexec = %p\n", _this->vulkan_config.loader_handle);
+    _this->vulkan_config.loader_handle = SDL_LoadObject("libmojoexec.so");
+    SDL_Log("acquired vulkan handle = %p\n", _this->vulkan_config.loader_handle);
 
     if (!_this->vulkan_config.loader_handle) {
         return false;
