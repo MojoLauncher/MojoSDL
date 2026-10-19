@@ -279,7 +279,7 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeMouse)(
     jint button, jint action, jfloat x, jfloat y, jboolean relative);
 
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeMouseButton)(
-        JNIEnv *env, jclass jcls, jint button, jint action, jfloat x, jfloat y, jboolean relative);
+        JNIEnv *env, jclass jcls, jint button, jint action);
 
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativePen)(
     JNIEnv *env, jclass jcls,
@@ -407,7 +407,7 @@ static JNINativeMethod SDLActivity_tab[] = {
     { "onNativePinchUpdate", "(FFFFF)V", SDL_JAVA_INTERFACE(onNativePinchUpdate) },
     { "onNativePinchEnd", "()V", SDL_JAVA_INTERFACE(onNativePinchEnd) },
     { "onNativeMouse", "(IIFFZ)V", SDL_JAVA_INTERFACE(onNativeMouse) },
-    { "onNativeMouseButton", "(IIFFZ)V", SDL_JAVA_INTERFACE(onNativeMouseButton) },
+    { "onNativeMouseButton", "(II)V", SDL_JAVA_INTERFACE(onNativeMouseButton) },
     { "onNativePen", "(IIIIFFF)V", SDL_JAVA_INTERFACE(onNativePen) },
     { "onNativeClipboardChanged", "()V", SDL_JAVA_INTERFACE(onNativeClipboardChanged) }
 #endif // !SDL_VIDEO_DISABLED
@@ -1457,11 +1457,11 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeMouse)(
 // Mouse (single click)
 JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(onNativeMouseButton)(
         JNIEnv *env, jclass jcls,
-        jint button, jint action, jfloat x, jfloat y, jboolean relative)
+        jint button, jint action)
 {
     SDL_LockMutex(Android_ActivityMutex);
 
-    Android_OnMouseButton(Android_Window, button, action, x, y, relative);
+    Android_OnMouseButton(Android_Window, button, action);
 
     SDL_UnlockMutex(Android_ActivityMutex);
 }

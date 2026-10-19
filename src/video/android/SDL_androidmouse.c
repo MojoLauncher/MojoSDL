@@ -247,7 +247,7 @@ void Android_OnMouse(SDL_Window *window, int state, int action, float x, float y
     }
 }
 
-void Android_OnMouseButton(SDL_Window* window, int button, int action, float x, float y, bool relative) {
+void Android_OnMouseButton(SDL_Window* window, int button, int action) {
     if(!window) return;
     Uint8 sdlButton;
     switch (button) {
@@ -256,7 +256,6 @@ void Android_OnMouseButton(SDL_Window* window, int button, int action, float x, 
         case BUTTON_TERTIARY:  sdlButton = SDL_BUTTON_MIDDLE; break;
         default: return;
     }
-    SDL_SendMouseMotion(0, window, SDL_DEFAULT_MOUSE_ID, relative, x, y);
     SDL_SendMouseButton(0, window, SDL_DEFAULT_MOUSE_ID, sdlButton, action == 1);
 }
 

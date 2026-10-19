@@ -97,7 +97,7 @@ public class SDLActivity {
     public static native boolean onNativeSoftReturnKey();
     public static native void onNativeKeyboardFocusLost();
     public static native void onNativeMouse(int button, int action, float x, float y, boolean relative);
-    public static native void onNativeMouseButton(int button, int action, float x, float y, boolean relative);
+    public static native void onNativeMouseButton(int button, int action);
     public static native void onNativeTouch(int touchDevId, int pointerFingerId,
                                             int action, float x,
                                             float y, float p);
