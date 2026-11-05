@@ -36,9 +36,12 @@
 
 #include <dlfcn.h>
 
+#include "mojoexec.h"
+
 bool Android_GLES_MakeCurrent(SDL_VideoDevice *_this, SDL_Window *window, SDL_GLContext context)
 {
     if (context && window) {
+        mojoexec_make_bigcore_affine();
         return SDL_EGL_MakeCurrent(_this, window->internal->egl_surface, context);
     } else {
         return SDL_EGL_MakeCurrent(_this, NULL, NULL);
